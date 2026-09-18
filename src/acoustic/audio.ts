@@ -1,3 +1,5 @@
+import { readArrayBuffer } from "../lib/readFile";
+
 export interface DecodedAudio {
   /** Mono mixdown of the file. */
   channelData: Float32Array;
@@ -9,7 +11,7 @@ type AudioCtor = typeof AudioContext;
 
 /** Decode an audio file to a mono Float32Array using the Web Audio API. */
 export async function decodeAudioFile(file: File): Promise<DecodedAudio> {
-  const arrayBuf = await file.arrayBuffer();
+  const arrayBuf = await readArrayBuffer(file);
   const Ctor: AudioCtor =
     window.AudioContext ??
     (window as unknown as { webkitAudioContext: AudioCtor }).webkitAudioContext;

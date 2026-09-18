@@ -3,6 +3,7 @@ import MapView, { type MapPoint } from "./components/MapView";
 import OlfactoryPanel from "./components/OlfactoryPanel";
 import AcousticPanel from "./components/AcousticPanel";
 import { parseBrianCsv } from "./olfactory/parseBrianCsv";
+import { readTextFile } from "./lib/readFile";
 import type { OlfactoryDataset } from "./types";
 
 type Mode = "olfactory" | "acoustic";
@@ -39,7 +40,7 @@ export default function App() {
     setOlfError(null);
     setOlfInfo(null);
     try {
-      const text = await file.text();
+      const text = await readTextFile(file);
       const result = parseBrianCsv(text, file.name);
       setDataset(result.dataset);
       const bits = [`Loaded ${result.dataset.samples.length} samples`];
@@ -53,7 +54,7 @@ export default function App() {
   };
 
   const handleGpx = async (file: File) => {
-    const text = await file.text();
+    const text = await readTextFile(file);
     setGpxText({ text, name: file.name });
   };
 
