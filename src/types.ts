@@ -17,6 +17,7 @@ export interface EnvReadings {
   humidityPct?: number;
   gasResistanceOhm?: number;
   altitudeM?: number;
+  airQuality?: number;
 }
 
 export interface OlfactorySample extends GeoPoint {
@@ -25,6 +26,10 @@ export interface OlfactorySample extends GeoPoint {
   /** Gas / feature channels, in volts (or raw units), keyed by channel name. */
   features: Record<string, number>;
   env?: EnvReadings;
+  /** Walk identifier, when the export tags rows with one. */
+  walkId?: string;
+  /** GPS accuracy in metres, when present. */
+  accuracyM?: number;
 }
 
 export interface OlfactoryDataset {
@@ -33,6 +38,8 @@ export interface OlfactoryDataset {
   samples: OlfactorySample[];
   /** Ordered channel names present across the samples (used for clustering). */
   featureChannels: string[];
+  /** Distinct walk ids found in the file, if any. */
+  walkIds: string[];
 }
 
 /** A single point of a GPX track. */

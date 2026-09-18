@@ -45,19 +45,20 @@ npm run typecheck  # type-check only
 
 ### Try it with the sample data
 
-`sample-data/` contains a synthetic walk you can load immediately:
+`sample-data/` contains real walks you can load immediately:
 
-- `example-olfactory-walk.csv` — 60 samples through three "smell zones"
-  (clean → traffic → bakery); clustering separates them cleanly.
-- `example-track.gpx` — a 5-minute GPX track for testing the acoustic sync
-  (bring your own audio file recorded over the same period).
+- `smellwalk-2026-09-11.csv` — a 171-sample BRIAN smell walk (8 gas sensors +
+  GPS). Load it in the **Olfactory** tab; clustering + dendrogram work out of
+  the box.
+- `kungsparken-sound-walk.gpx` — a Strava GPX sound-walk track (3,909 points).
+  Load it in the **Acoustic** tab to see the route; add your own audio recorded
+  over the same period to compute and place metrics.
 
 ## Data formats
 
-See [`docs/data-formats.md`](docs/data-formats.md). The BRIAN olfactory CSV is
-**proposed here** — BrianHardware currently streams over BLE and has no file
-export yet, so this spec should be reconciled with the firmware when it gains
-one.
+See [`docs/data-formats.md`](docs/data-formats.md). The olfactory CSV section
+describes the **actual smell-walk export**; the parser also tolerates related
+layouts and future columns (more sensors, environmental data) without changes.
 
 ## Deployment
 

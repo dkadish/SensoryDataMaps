@@ -1,62 +1,73 @@
 # Data formats
 
-Sensory Data Maps ingests three kinds of file. None of these formats are frozen
-yet — the olfactory CSV in particular is **proposed here** because
-[BrianHardware](https://github.com/ODRResearchGroup/BrianHardware) currently
-streams data over BLE rather than exporting a file. When BRIAN gains a logging
-export, this document should be reconciled with it (and vice-versa). The parser
-is deliberately tolerant so it can adapt as the real format settles.
+Sensory Data Maps ingests three kinds of file. The olfactory CSV section below
+describes the **actual smell-walk app export** (an example ships in
+`sample-data/smellwalk-2026-09-11.csv`); the parser is deliberately tolerant so
+it also accepts related layouts and future columns (more sensors, environmental
+data) without code changes. See
+[BrianHardware](https://github.com/ODRResearchGroup/BrianHardware) for the
+sensor hardware.
 
 ---
 
-## 1. Olfactory CSV (BRIAN)
+## 1. Olfactory CSV (BRIAN smell-walk export)
 
-A UTF-8 CSV with a **header row**. One row per sample. Column order does not
+A UTF-8 CSV with a **header row**, one row per sample. Column order does not
 matter; columns are matched by name (case-insensitive, spaces/underscores
-ignored). Unknown numeric columns are treated as extra feature channels, so the
-file stays forward-compatible with new sensors.
+ignored). **Any unrecognised numeric column becomes a gas/feature channel** for
+clustering — so new sensors (up to 11) appear automatically. Known metadata
+columns are excluded from clustering.
+
+### The current export
+
+```csv
+walk_id,recorded_at,latitude,longitude,accuracy_m,ch4,nh3,hcho,voc,odour,h2s,etoh,no2
+walk-1789121628004,2026-09-11T10:13:58.076Z,55.6059751,12.9839043,3.46,0.894,0.576,0.028,0.450,3.244,0.026,0.014,0.156
+```
 
 ### Recognised columns
 
-| Purpose | Accepted header names (any of) | Units |
-|---|---|---|
-| Timestamp | `timestamp`, `time`, `datetime`, `iso_time` | ISO-8601 string, or Unix seconds/milliseconds |
-| Latitude | `lat`, `latitude` | decimal degrees (WGS84) |
-| Longitude | `lon`, `lng`, `long`, `longitude` | decimal degrees (WGS84) |
-| Temperature | `temperature`, `temperature_c`, `temp` | °C |
-| Pressure | `pressure`, `pressure_hpa` | hPa |
-| Humidity | `humidity`, `humidity_pct`, `rh` | % |
-| Gas resistance | `gas_resistance`, `gas_resistance_ohm`, `voc_ohm` | Ω |
-| Altitude | `altitude`, `altitude_m`, `elevation` | m |
+| Purpose | Accepted header names (any of) | Units | Used for clustering? |
+|---|---|---|---|
+| Timestamp | `recorded_at`, `timestamp`, `time`, `datetime`, `date`, `ts` | ISO-8601 string, or Unix s/ms | no |
+| Latitude | `latitude`, `lat` | decimal degrees (WGS84) | no |
+| Longitude | `longitude`, `lon`, `lng`, `long` | decimal degrees (WGS84) | no |
+| Walk id | `walk_id`, `walk`, `track_id`, `session[_id]` | string | no |
+| GPS accuracy | `accuracy_m`, `accuracy`, `gps_accuracy`, `hacc` | m | no (metadata) |
+| Temperature | `temperature`, `temperature_c`, `temp` | °C | no (env) |
+| Pressure | `pressure`, `pressure_hpa`, `barometric_pressure` | hPa | no (env) |
+| Humidity | `humidity`, `humidity_pct`, `rh` | % | no (env) |
+| Gas resistance | `gas_resistance[_ohm]`, `voc_ohm` | Ω | no (env) |
+| Air quality | `air_quality`, `aqi`, `iaq`, `air_quality_index` | index | no (env) |
+| Altitude | `altitude`, `altitude_m`, `elevation` | m | no (env) |
+| Other metadata | `id`, `index`, `seq`, `hdop`, `speed`, `heading`, `bearing`, `satellites`, … | — | no (ignored) |
 
 ### Gas / feature channels
 
-Every remaining numeric column becomes a **feature channel** used for
-clustering. To match the BRIAN V1 hardware, the recommended channel headers are
-the canonical sensor names (values in **volts**):
+Everything else numeric is a **feature channel** used for clustering. In the
+current export these are the gas sensors (values in **volts**):
 
-`HCHO`, `CH4`, `VOC`, `Odor`, `EtOH`, `H2S`, `NO2`, `NH3`, `CO`, `Smoke`, `H2`
+`ch4`, `nh3`, `hcho`, `voc`, `odour`, `h2s`, `etoh`, `no2`
 
-(See the BrianHardware `CLAUDE.md` BLE contract table for the authoritative
-sensor list and which ADS1115 channel each lives on.)
-
-### Example
-
-```csv
-timestamp,lat,lon,HCHO,CH4,VOC,Odor,EtOH,H2S,NO2,NH3,CO,Smoke,H2,temperature_c,humidity_pct,pressure_hpa,gas_resistance_ohm
-2026-09-25T10:00:00Z,55.6050,13.0038,0.412,0.900,1.230,0.330,0.780,0.150,0.220,0.410,0.560,0.190,0.640,19.4,58.2,1012.7,45210
-2026-09-25T10:00:05Z,55.6051,13.0040,0.418,0.905,1.240,0.335,0.790,0.152,0.223,0.415,0.561,0.191,0.642,19.4,58.1,1012.7,45120
-```
+Future exports may add more (up to 11): e.g. `co`, `smoke`, `h2`. They need no
+code change — they'll simply appear as extra selectable channels. Channel names
+are used verbatim, so `odour`/`Odor` etc. are whatever the header says.
 
 ### Notes
 
-- Rows with a missing/invalid `lat` **or** `lon` are dropped (they can't be
-  mapped). Rows with a missing timestamp are kept (timestamp becomes `NaN`).
+- Rows with a missing/invalid `latitude` **or** `longitude` are dropped (they
+  can't be mapped). Rows with no timestamp are kept (timestamp becomes `NaN`;
+  no walk path drawn).
 - Missing individual sensor values are allowed; a channel is only offered for
-  clustering when it is present on enough samples.
-- If your export puts GPS on a separate device, pre-join it to the sensor rows
-  by timestamp before uploading, or use the acoustic-style GPX sync (not yet
-  wired for olfactory — see the roadmap in the README).
+  clustering when present on ≥ 50 % of samples.
+- **Sensor-dropout rows** (e.g. all-zero readings from a momentary glitch) are
+  kept as-is and typically surface as a singleton outlier cluster — a useful
+  QC signal, but consider filtering them before drawing conclusions.
+- **Multiple `walk_id`s** in one file are currently shown together (per-walk
+  split is on the roadmap).
+- Environmental columns are parsed into each sample and shown in its map popup,
+  but are **not** clustering inputs by default (see the README roadmap for
+  making them opt-in).
 
 ---
 

@@ -77,6 +77,15 @@ export default function OlfactoryPanel({ dataset, onMapData }: Props) {
         const v = s.features[c];
         if (Number.isFinite(v)) rows.push([c, v.toFixed(3)]);
       }
+      if (s.env) {
+        const e = s.env;
+        if (e.temperatureC != null) rows.push(["Temp", `${e.temperatureC.toFixed(1)} °C`]);
+        if (e.humidityPct != null) rows.push(["Humidity", `${e.humidityPct.toFixed(0)} %`]);
+        if (e.pressureHpa != null) rows.push(["Pressure", `${e.pressureHpa.toFixed(0)} hPa`]);
+        if (e.gasResistanceOhm != null) rows.push(["Gas R", `${e.gasResistanceOhm.toFixed(0)} Ω`]);
+        if (e.airQuality != null) rows.push(["Air quality", e.airQuality.toFixed(1)]);
+      }
+      if (s.accuracyM != null) rows.push(["GPS ±", `${s.accuracyM.toFixed(1)} m`]);
       return { id: i, lat: s.lat, lon: s.lon, color, label: `Sample ${i + 1}`, rows };
     });
 

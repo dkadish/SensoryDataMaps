@@ -5,7 +5,37 @@ import type { EnvReadings, OlfactoryDataset, OlfactorySample } from "../types";
 // or underscores). See docs/data-formats.md.
 const LAT_KEYS = new Set(["lat", "latitude"]);
 const LON_KEYS = new Set(["lon", "lng", "long", "longitude"]);
-const TIME_KEYS = new Set(["timestamp", "time", "datetime", "isotime"]);
+const TIME_KEYS = new Set([
+  "timestamp",
+  "time",
+  "datetime",
+  "isotime",
+  "recordedat",
+  "recorded",
+  "date",
+  "ts",
+]);
+const WALKID_KEYS = new Set(["walkid", "walk", "trackid", "session", "sessionid"]);
+const ACCURACY_KEYS = new Set(["accuracym", "accuracy", "accuracymeters", "gpsaccuracy", "hacc"]);
+
+// Numeric columns that are metadata, not gas sensors — excluded from clustering.
+const IGNORE_KEYS = new Set([
+  "id",
+  "index",
+  "seq",
+  "sample",
+  "sampleindex",
+  "hdop",
+  "vdop",
+  "pdop",
+  "satellites",
+  "sats",
+  "speed",
+  "heading",
+  "bearing",
+  "course",
+  "fix",
+]);
 
 const ENV_KEYS: Record<string, keyof EnvReadings> = {
   temperature: "temperatureC",
@@ -13,6 +43,7 @@ const ENV_KEYS: Record<string, keyof EnvReadings> = {
   temp: "temperatureC",
   pressure: "pressureHpa",
   pressurehpa: "pressureHpa",
+  barometricpressure: "pressureHpa",
   humidity: "humidityPct",
   humiditypct: "humidityPct",
   rh: "humidityPct",
@@ -22,6 +53,10 @@ const ENV_KEYS: Record<string, keyof EnvReadings> = {
   altitude: "altitudeM",
   altitudem: "altitudeM",
   elevation: "altitudeM",
+  airquality: "airQuality",
+  aqi: "airQuality",
+  iaq: "airQuality",
+  airqualityindex: "airQuality",
 };
 
 function normalise(key: string): string {
@@ -69,14 +104,27 @@ export function parseBrianCsv(text: string, name: string): ParseResult {
     throw new Error("CSV has no header row.");
   }
 
-  // Classify each header once.
-  type Role = "lat" | "lon" | "time" | { env: keyof EnvReadings } | "feature";
+  // Classify each header once. Anything not recognised as coordinates, time,
+  // env or metadata becomes a gas/feature channel — so new sensors in future
+  // exports are picked up automatically.
+  type Role =
+    | "lat"
+    | "lon"
+    | "time"
+    | "walkid"
+    | "accuracy"
+    | "ignore"
+    | { env: keyof EnvReadings }
+    | "feature";
   const roles = new Map<string, Role>();
   for (const h of headers) {
     const n = normalise(h);
     if (LAT_KEYS.has(n)) roles.set(h, "lat");
     else if (LON_KEYS.has(n)) roles.set(h, "lon");
     else if (TIME_KEYS.has(n)) roles.set(h, "time");
+    else if (WALKID_KEYS.has(n)) roles.set(h, "walkid");
+    else if (ACCURACY_KEYS.has(n)) roles.set(h, "accuracy");
+    else if (IGNORE_KEYS.has(n)) roles.set(h, "ignore");
     else if (n in ENV_KEYS) roles.set(h, { env: ENV_KEYS[n] });
     else roles.set(h, "feature");
   }
@@ -87,12 +135,15 @@ export function parseBrianCsv(text: string, name: string): ParseResult {
   }
 
   const samples: OlfactorySample[] = [];
+  const walkIdSet = new Set<string>();
   let droppedRows = 0;
 
   for (const row of res.data) {
     let lat = NaN;
     let lon = NaN;
     let timestamp = NaN;
+    let walkId: string | undefined;
+    let accuracyM: number | undefined;
     const features: Record<string, number> = {};
     const env: EnvReadings = {};
 
@@ -102,7 +153,14 @@ export function parseBrianCsv(text: string, name: string): ParseResult {
       if (role === "lat") lat = Number(raw);
       else if (role === "lon") lon = Number(raw);
       else if (role === "time") timestamp = parseTimestamp(raw);
-      else if (role === "feature") {
+      else if (role === "walkid") {
+        if (raw != null && raw !== "") walkId = String(raw);
+      } else if (role === "accuracy") {
+        const v = Number(raw);
+        if (Number.isFinite(v)) accuracyM = v;
+      } else if (role === "ignore") {
+        // metadata — skip
+      } else if (role === "feature") {
         const v = Number(raw);
         if (Number.isFinite(v)) features[h] = v;
       } else {
@@ -115,12 +173,15 @@ export function parseBrianCsv(text: string, name: string): ParseResult {
       droppedRows++;
       continue;
     }
+    if (walkId) walkIdSet.add(walkId);
     samples.push({
       lat,
       lon,
       timestamp,
       features,
       env: Object.keys(env).length ? env : undefined,
+      walkId,
+      accuracyM,
     });
   }
 
@@ -137,12 +198,20 @@ export function parseBrianCsv(text: string, name: string): ParseResult {
     return present >= samples.length * 0.5;
   });
 
+  const walkIds = [...walkIdSet];
+  if (walkIds.length > 1) {
+    warnings.push(
+      `File contains ${walkIds.length} walk ids; all rows are shown together (per-walk split is on the roadmap).`,
+    );
+  }
+
   return {
     dataset: {
       kind: "olfactory",
       name,
       samples,
       featureChannels: usable,
+      walkIds,
     },
     droppedRows,
     warnings,
