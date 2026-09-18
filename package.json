@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Rapidly map and analyse olfactory and acoustic sensory data on a map.",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

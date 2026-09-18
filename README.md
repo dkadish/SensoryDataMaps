@@ -89,6 +89,10 @@ enable Pages → "GitHub Actions" in the repo settings.
 - [ ] Reconcile the CSV spec with the real BRIAN log export.
 - [ ] Overlap / windowing options and spectrogram preview for audio.
 
+## License
+
+[MIT](LICENSE) © David Kadish
+
 ## Related projects
 
 - [BrianHardware](https://github.com/ODRResearchGroup/BrianHardware) — the BRIAN
