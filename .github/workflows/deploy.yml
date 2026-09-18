@@ -25,6 +25,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # Turns Pages on the first time so no manual Settings toggle is needed.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - name: Build
         env:
           # Project-page base path: https://<user>.github.io/<repo>/
