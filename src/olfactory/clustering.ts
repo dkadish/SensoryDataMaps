@@ -1,6 +1,7 @@
 import { agnes, type AgglomerationMethod, type Cluster } from "ml-hclust";
 import type { OlfactoryDataset } from "../types";
 import { mean, zScoreColumns } from "../lib/stats";
+import { sampleValue } from "./values";
 
 export type LinkageMethod = AgglomerationMethod;
 
@@ -37,14 +38,14 @@ export interface ClusterResult {
 function buildMatrix(dataset: OlfactoryDataset, channels: string[]): number[][] {
   const colMeans = channels.map((c) => {
     const present = dataset.samples
-      .map((s) => s.features[c])
-      .filter((v) => Number.isFinite(v)) as number[];
+      .map((s) => sampleValue(s, c))
+      .filter((v) => Number.isFinite(v));
     return present.length ? mean(present) : 0;
   });
 
   const raw = dataset.samples.map((s) =>
     channels.map((c, ci) => {
-      const v = s.features[c];
+      const v = sampleValue(s, c);
       return Number.isFinite(v) ? v : colMeans[ci];
     }),
   );
@@ -65,7 +66,11 @@ export function buildOlfactoryTree(
   channels: string[],
   method: LinkageMethod,
 ): OlfactoryTree {
-  const used = channels.filter((c) => dataset.featureChannels.includes(c));
+  const valid = new Set<string>([
+    ...dataset.featureChannels,
+    ...dataset.envChannels.map((e) => e.key),
+  ]);
+  const used = channels.filter((c) => valid.has(c));
   if (used.length === 0) {
     throw new Error("Select at least one channel to cluster on.");
   }

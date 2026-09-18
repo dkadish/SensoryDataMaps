@@ -34,12 +34,11 @@ walk-1789121628004,2026-09-11T10:13:58.076Z,55.6059751,12.9839043,3.46,0.894,0.5
 | Longitude | `longitude`, `lon`, `lng`, `long` | decimal degrees (WGS84) | no |
 | Walk id | `walk_id`, `walk`, `track_id`, `session[_id]` | string | no |
 | GPS accuracy | `accuracy_m`, `accuracy`, `gps_accuracy`, `hacc` | m | no (metadata) |
-| Temperature | `temperature`, `temperature_c`, `temp` | °C | no (env) |
-| Pressure | `pressure`, `pressure_hpa`, `barometric_pressure` | hPa | no (env) |
-| Humidity | `humidity`, `humidity_pct`, `rh` | % | no (env) |
-| Gas resistance | `gas_resistance[_ohm]`, `voc_ohm` | Ω | no (env) |
-| Air quality | `air_quality`, `aqi`, `iaq`, `air_quality_index` | index | no (env) |
-| Altitude | `altitude`, `altitude_m`, `elevation` | m | no (env) |
+| Temperature | `temperature`, `temperature_c`, `temp` | °C | opt-in |
+| Pressure | `pressure`, `pressure_hpa`, `barometric_pressure` | hPa | opt-in |
+| Humidity | `humidity`, `humidity_pct`, `rh` | % | opt-in |
+| Air quality / gas resistance | `gas_resistance[_ohm]`, `voc_ohm`, `air_quality`, `aqi`, `iaq` | Ω (BME680 gas resistance) | opt-in |
+| Altitude | `altitude`, `altitude_m`, `elevation` | m | opt-in |
 | Other metadata | `id`, `index`, `seq`, `hdop`, `speed`, `heading`, `bearing`, `satellites`, … | — | no (ignored) |
 
 ### Gas / feature channels
@@ -65,9 +64,11 @@ are used verbatim, so `odour`/`Odor` etc. are whatever the header says.
   QC signal, but consider filtering them before drawing conclusions.
 - **Multiple `walk_id`s** in one file are currently shown together (per-walk
   split is on the roadmap).
-- Environmental columns are parsed into each sample and shown in its map popup,
-  but are **not** clustering inputs by default (see the README roadmap for
-  making them opt-in).
+- Environmental columns (incl. BME680 gas resistance as "air quality") are
+  parsed into each sample and shown in its map popup. They are **opt-in**
+  clustering/colouring inputs — listed as dashed chips under the gas channels,
+  off by default; tick them to include them (they're z-scored alongside the gas
+  channels so units don't dominate).
 
 ---
 

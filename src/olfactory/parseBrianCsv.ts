@@ -1,5 +1,6 @@
 import Papa from "papaparse";
-import type { EnvReadings, OlfactoryDataset, OlfactorySample } from "../types";
+import type { EnvChannel, EnvKey, EnvReadings, OlfactoryDataset, OlfactorySample } from "../types";
+import { ENV_LABELS, ENV_ORDER } from "./values";
 
 // Header synonyms -> canonical role. Keys are normalised (lowercase, no spaces
 // or underscores). See docs/data-formats.md.
@@ -50,13 +51,14 @@ const ENV_KEYS: Record<string, keyof EnvReadings> = {
   gasresistance: "gasResistanceOhm",
   gasresistanceohm: "gasResistanceOhm",
   vocohm: "gasResistanceOhm",
+  // BME680 "air quality" is its gas-resistance reading.
+  airquality: "gasResistanceOhm",
+  aqi: "gasResistanceOhm",
+  iaq: "gasResistanceOhm",
+  airqualityindex: "gasResistanceOhm",
   altitude: "altitudeM",
   altitudem: "altitudeM",
   elevation: "altitudeM",
-  airquality: "airQuality",
-  aqi: "airQuality",
-  iaq: "airQuality",
-  airqualityindex: "airQuality",
 };
 
 function normalise(key: string): string {
@@ -198,6 +200,12 @@ export function parseBrianCsv(text: string, name: string): ParseResult {
     return present >= samples.length * 0.5;
   });
 
+  // Environmental metrics present on most samples become opt-in inputs.
+  const envChannels: EnvChannel[] = ENV_ORDER.filter((key: EnvKey) => {
+    const present = samples.filter((s) => s.env && Number.isFinite(s.env[key])).length;
+    return present >= samples.length * 0.5;
+  }).map((key) => ({ key, label: ENV_LABELS[key] }));
+
   const walkIds = [...walkIdSet];
   if (walkIds.length > 1) {
     warnings.push(
@@ -211,6 +219,7 @@ export function parseBrianCsv(text: string, name: string): ParseResult {
       name,
       samples,
       featureChannels: usable,
+      envChannels,
       walkIds,
     },
     droppedRows,

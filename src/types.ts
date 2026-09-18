@@ -10,14 +10,24 @@ export interface GeoPoint {
   lon: number;
 }
 
-/** BME680 environmental readings that may accompany an olfactory sample. */
+/** BME680 environmental readings that may accompany an olfactory sample.
+ *  "Air quality" from the BME680 is its gas-resistance reading, so it maps to
+ *  `gasResistanceOhm`. */
 export interface EnvReadings {
   temperatureC?: number;
   pressureHpa?: number;
   humidityPct?: number;
   gasResistanceOhm?: number;
   altitudeM?: number;
-  airQuality?: number;
+}
+
+export type EnvKey = keyof EnvReadings;
+
+/** An environmental metric available (present in the data) as a clustering /
+ *  colouring input. Off by default; the user opts in. */
+export interface EnvChannel {
+  key: EnvKey;
+  label: string;
 }
 
 export interface OlfactorySample extends GeoPoint {
@@ -36,8 +46,10 @@ export interface OlfactoryDataset {
   kind: "olfactory";
   name: string;
   samples: OlfactorySample[];
-  /** Ordered channel names present across the samples (used for clustering). */
+  /** Gas/feature channel names present across the samples (clustering default). */
   featureChannels: string[];
+  /** Environmental metrics present in the data — opt-in clustering inputs. */
+  envChannels: EnvChannel[];
   /** Distinct walk ids found in the file, if any. */
   walkIds: string[];
 }

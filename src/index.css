@@ -136,6 +136,13 @@ input[type="range"] {
   background: #e5f0f8;
   border-color: var(--accent);
 }
+.chip.env {
+  border-style: dashed;
+}
+.chip.env.on {
+  background: #eaf6ef;
+  border-color: #009e73;
+}
 .chip input {
   display: none;
 }

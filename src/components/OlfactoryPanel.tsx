@@ -8,6 +8,7 @@ import {
 } from "../olfactory/clustering";
 import { categoricalColor, sequentialColor } from "../lib/color";
 import { extent } from "../lib/stats";
+import { sampleValue } from "../olfactory/values";
 import type { MapPoint } from "./MapView";
 import Dendrogram from "./Dendrogram";
 
@@ -24,6 +25,10 @@ function fmtTime(t: number): string {
 
 export default function OlfactoryPanel({ dataset, onMapData }: Props) {
   const allChannels = dataset.featureChannels;
+  const envChannels = dataset.envChannels;
+  // Label lookup for both gas channels and env metrics (for the colour dropdown).
+  const labelFor = (key: string) =>
+    envChannels.find((e) => e.key === key)?.label ?? key;
   const [selected, setSelected] = useState<string[]>(allChannels);
   const [method, setMethod] = useState<LinkageMethod>("ward");
   const [k, setK] = useState(Math.min(4, dataset.samples.length));
@@ -58,7 +63,7 @@ export default function OlfactoryPanel({ dataset, onMapData }: Props) {
     const samples = dataset.samples;
     let channelExtent: [number, number] = [NaN, NaN];
     if (colorMode !== CLUSTER_MODE) {
-      channelExtent = extent(samples.map((s) => s.features[colorMode]));
+      channelExtent = extent(samples.map((s) => sampleValue(s, colorMode)));
     }
     const [lo, hi] = channelExtent;
     const span = hi - lo || 1;
@@ -68,7 +73,7 @@ export default function OlfactoryPanel({ dataset, onMapData }: Props) {
       if (colorMode === CLUSTER_MODE && assignments) {
         color = categoricalColor(assignments[i]);
       } else if (colorMode !== CLUSTER_MODE) {
-        const v = s.features[colorMode];
+        const v = sampleValue(s, colorMode);
         color = Number.isFinite(v) ? sequentialColor((v - lo) / span) : "#ccc";
       }
       const rows: [string, string][] = [["Time", fmtTime(s.timestamp)]];
@@ -82,8 +87,8 @@ export default function OlfactoryPanel({ dataset, onMapData }: Props) {
         if (e.temperatureC != null) rows.push(["Temp", `${e.temperatureC.toFixed(1)} °C`]);
         if (e.humidityPct != null) rows.push(["Humidity", `${e.humidityPct.toFixed(0)} %`]);
         if (e.pressureHpa != null) rows.push(["Pressure", `${e.pressureHpa.toFixed(0)} hPa`]);
-        if (e.gasResistanceOhm != null) rows.push(["Gas R", `${e.gasResistanceOhm.toFixed(0)} Ω`]);
-        if (e.airQuality != null) rows.push(["Air quality", e.airQuality.toFixed(1)]);
+        if (e.gasResistanceOhm != null)
+          rows.push(["Air quality", `${e.gasResistanceOhm.toFixed(0)} Ω`]);
       }
       if (s.accuracyM != null) rows.push(["GPS ±", `${s.accuracyM.toFixed(1)} m`]);
       return { id: i, lat: s.lat, lon: s.lon, color, label: `Sample ${i + 1}`, rows };
@@ -136,6 +141,28 @@ export default function OlfactoryPanel({ dataset, onMapData }: Props) {
             <span className="muted">No numeric channels detected in this file.</span>
           )}
         </div>
+        {envChannels.length > 0 && (
+          <>
+            <p className="muted small" style={{ marginTop: 10 }}>
+              Environmental (off by default)
+            </p>
+            <div className="chips">
+              {envChannels.map((e) => (
+                <label
+                  key={e.key}
+                  className={`chip env ${selected.includes(e.key) ? "on" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(e.key)}
+                    onChange={() => toggleChannel(e.key)}
+                  />
+                  {e.label}
+                </label>
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
       <section>
@@ -189,6 +216,11 @@ export default function OlfactoryPanel({ dataset, onMapData }: Props) {
             {allChannels.map((c) => (
               <option key={c} value={c}>
                 {c} (value)
+              </option>
+            ))}
+            {envChannels.map((e) => (
+              <option key={e.key} value={e.key}>
+                {labelFor(e.key)}
               </option>
             ))}
           </select>
