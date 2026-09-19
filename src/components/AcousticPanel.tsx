@@ -11,9 +11,11 @@ import { extent } from "../lib/stats";
 import type { MapLegend, MapPoint } from "./MapView";
 
 interface Props {
+  layerId: string;
   audioFile: File | null;
   gpxText: { text: string; name: string } | null;
-  onMapData: (
+  onLayerData: (
+    layerId: string,
     points: MapPoint[],
     polyline?: [number, number][],
     legend?: MapLegend,
@@ -28,7 +30,7 @@ function epochToLocalInput(epoch: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-export default function AcousticPanel({ audioFile, gpxText, onMapData }: Props) {
+export default function AcousticPanel({ layerId, audioFile, gpxText, onLayerData }: Props) {
   const [decoded, setDecoded] = useState<DecodedAudio | null>(null);
   const [decoding, setDecoding] = useState(false);
   const [gpxTrack, setGpxTrack] = useState<GpxTrack | null>(null);
@@ -155,7 +157,7 @@ export default function AcousticPanel({ audioFile, gpxText, onMapData }: Props) 
         : undefined;
 
     if (!located) {
-      onMapData([], polyline);
+      onLayerData(layerId, [], polyline);
       return;
     }
     const values = located.map((s) => s.metrics[metric]);
@@ -190,8 +192,8 @@ export default function AcousticPanel({ audioFile, gpxText, onMapData }: Props) 
           colors: sequentialSwatches(12),
         }
       : undefined;
-    onMapData(points, polyline, legend);
-  }, [located, track, metric, onMapData]);
+    onLayerData(layerId, points, polyline, legend);
+  }, [layerId, located, track, metric, onLayerData]);
 
   const locatedCount = located?.filter((s) => Number.isFinite(s.lat)).length ?? 0;
   const embeddedActive = !gpxTrack && !!embedded;
