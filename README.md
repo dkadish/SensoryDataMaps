@@ -17,6 +17,10 @@ built to deploy as a static site to GitHub Pages, Netlify, or any static host.
 - Toggle each layer's **visibility**, **rename** it, or **remove** it. Every
   visible layer contributes its points, its track line and its colour-scale
   legend, and the map fits to all of them at once.
+- Choose each layer's **map style** — **Circles** (a coloured marker per
+  sample), a **Streak** (one continuous line whose colour changes along the
+  walk, using the same per-sample colours), or **Both**. Works for both
+  olfactory and acoustic layers.
 
 ### Olfactory
 - Load a **BRIAN CSV** export (gas-sensor voltages + GPS; see

@@ -1,5 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import MapView, { type MapLayer, type MapLegend, type MapPoint } from "./components/MapView";
+import MapView, {
+  type MapLayer,
+  type MapLegend,
+  type MapPoint,
+  type RenderMode,
+} from "./components/MapView";
 import OlfactoryPanel from "./components/OlfactoryPanel";
 import AcousticPanel from "./components/AcousticPanel";
 import LayerCard from "./components/LayerCard";
@@ -21,6 +26,8 @@ interface BaseLayer {
   visible: boolean;
   /** Identity colour — the layer's track line and marker outline on the map. */
   accent: string;
+  /** How this layer draws its samples: circles, a colour-changing streak, or both. */
+  render: RenderMode;
 }
 
 interface OlfactoryLayer extends BaseLayer {
@@ -74,6 +81,7 @@ export default function App() {
           name: file.name,
           visible: true,
           accent,
+          render: "circles",
           dataset: result.dataset,
           info: bits.join(" · "),
         },
@@ -88,7 +96,16 @@ export default function App() {
     const { id, accent } = nextLayerBase();
     setLayers((prev) => [
       ...prev,
-      { id, kind: "acoustic", name: file.name, visible: true, accent, audioFile: file, gpxText: null },
+      {
+        id,
+        kind: "acoustic",
+        name: file.name,
+        visible: true,
+        accent,
+        render: "circles",
+        audioFile: file,
+        gpxText: null,
+      },
     ]);
   };
 
@@ -111,6 +128,9 @@ export default function App() {
   const renameLayer = (id: string, name: string) =>
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, name } : l)));
 
+  const setRenderMode = (id: string, render: RenderMode) =>
+    setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, render } : l)));
+
   const removeLayer = (id: string) => {
     setLayers((prev) => prev.filter((l) => l.id !== id));
     setOutputs((prev) => {
@@ -131,6 +151,7 @@ export default function App() {
             id: l.id,
             name: l.name,
             accent: l.accent,
+            render: l.render,
             points: o?.points ?? [],
             polyline: o?.polyline,
             legend: o?.legend,
@@ -190,10 +211,12 @@ export default function App() {
               kindLabel={layer.kind === "olfactory" ? "Olfactory" : "Acoustic"}
               accent={layer.accent}
               visible={layer.visible}
+              renderMode={layer.render}
               pointCount={outputs[layer.id]?.points.length ?? 0}
               onToggleVisible={() => toggleVisible(layer.id)}
               onRemove={() => removeLayer(layer.id)}
               onRename={(name) => renameLayer(layer.id, name)}
+              onRenderModeChange={(mode) => setRenderMode(layer.id, mode)}
             >
               {layer.kind === "olfactory" ? (
                 <>

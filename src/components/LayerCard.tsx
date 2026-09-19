@@ -1,15 +1,25 @@
 import { useState, type ReactNode } from "react";
+import type { RenderMode } from "./MapView";
+
+const RENDER_MODES: { value: RenderMode; label: string; title: string }[] = [
+  { value: "circles", label: "Circles", title: "A coloured circle per sample" },
+  { value: "streak", label: "Streak", title: "A single line whose colour changes along the walk" },
+  { value: "both", label: "Both", title: "Circles over the colour-changing streak" },
+];
 
 interface Props {
   name: string;
   kindLabel: string;
   accent: string;
   visible: boolean;
+  /** How this layer draws its samples on the map. */
+  renderMode: RenderMode;
   /** Number of points this layer currently draws on the map. */
   pointCount: number;
   onToggleVisible: () => void;
   onRemove: () => void;
   onRename: (name: string) => void;
+  onRenderModeChange: (mode: RenderMode) => void;
   children: ReactNode;
 }
 
@@ -21,10 +31,12 @@ export default function LayerCard({
   kindLabel,
   accent,
   visible,
+  renderMode,
   pointCount,
   onToggleVisible,
   onRemove,
   onRename,
+  onRenderModeChange,
   children,
 }: Props) {
   const [open, setOpen] = useState(true);
@@ -102,6 +114,23 @@ export default function LayerCard({
         <span className="muted small">
           {pointCount > 0 ? `${pointCount.toLocaleString()} points on map` : "not yet mapped"}
         </span>
+      </div>
+      <div className="layer-render" role="group" aria-label="Map style">
+        <span className="muted small">Style</span>
+        <div className="segmented">
+          {RENDER_MODES.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              className={`seg ${renderMode === m.value ? "on" : ""}`}
+              title={m.title}
+              aria-pressed={renderMode === m.value}
+              onClick={() => onRenderModeChange(m.value)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
       </div>
       {open && <div className="layer-content">{children}</div>}
     </div>

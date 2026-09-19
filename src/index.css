@@ -187,6 +187,37 @@ body,
   border-radius: 999px;
   padding: 1px 7px;
 }
+.layer-render {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.seg {
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 4px 9px;
+  color: var(--text);
+  border-left: 1px solid var(--border);
+}
+.seg:first-child {
+  border-left: none;
+}
+.seg:hover {
+  background: var(--panel);
+}
+.seg.on {
+  background: var(--accent);
+  color: #fff;
+}
 .layer-content {
   padding: 4px 10px 12px;
   border-top: 1px solid var(--border);
