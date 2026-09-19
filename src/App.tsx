@@ -120,7 +120,7 @@ export default function App() {
                 />
               </label>
               <label className="filebtn">
-                {gpxText ? `GPX: ${gpxText.name}` : "Upload GPX track"}
+                {gpxText ? `GPX: ${gpxText.name}` : "Upload GPX track (optional)"}
                 <input
                   type="file"
                   accept=".gpx,application/gpx+xml,text/xml"

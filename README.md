@@ -18,7 +18,12 @@ built to deploy as a static site to GitHub Pages, Netlify, or any static host.
 - Map every sample, coloured by **cluster** or by any single **channel value**.
 
 ### Acoustic
-- Load an **audio file** + a **GPX track** (e.g. a Strava export).
+- Load an **audio file**. Recordings that carry a **GPS track embedded in
+  their metadata** (e.g. from the
+  [GPS Audio Recorder](https://play.google.com/store/apps/details?id=com.gpsaudiorecorder)
+  Android app) map on their own — no GPX required, and the recording start time
+  is detected automatically. For any other audio, add a **GPX track** (e.g. a
+  Strava export) as before.
 - Compute **basic per-window acoustic metrics** in the browser (via
   [Meyda](https://meyda.js.org/)): RMS / level (dBFS), zero-crossing rate,
   spectral centroid, 85 % spectral rolloff, and spectral flatness.

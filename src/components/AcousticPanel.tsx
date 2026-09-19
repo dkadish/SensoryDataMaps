@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AcousticSegment, GpxTrack } from "../types";
 import { decodeAudioFile, type DecodedAudio } from "../acoustic/audio";
 import { parseGpx, trackTimeRange } from "../acoustic/gpx";
+import { extractEmbeddedTrack, type EmbeddedTrackResult } from "../acoustic/embeddedTrack";
 import { locateSegments } from "../acoustic/sync";
 import { meydaProvider, METRIC_LABELS } from "../acoustic/meydaProvider";
 import { DEFAULT_ANALYSIS_OPTIONS } from "../acoustic/provider";
@@ -30,7 +31,8 @@ function epochToLocalInput(epoch: number): string {
 export default function AcousticPanel({ audioFile, gpxText, onMapData }: Props) {
   const [decoded, setDecoded] = useState<DecodedAudio | null>(null);
   const [decoding, setDecoding] = useState(false);
-  const [track, setTrack] = useState<GpxTrack | null>(null);
+  const [gpxTrack, setGpxTrack] = useState<GpxTrack | null>(null);
+  const [embedded, setEmbedded] = useState<EmbeddedTrackResult | null>(null);
   const [segments, setSegments] = useState<AcousticSegment[] | null>(null);
   const [segmentSec, setSegmentSec] = useState(DEFAULT_ANALYSIS_OPTIONS.segmentSec);
   const [frameSize, setFrameSize] = useState(DEFAULT_ANALYSIS_OPTIONS.frameSize);
@@ -64,22 +66,57 @@ export default function AcousticPanel({ audioFile, gpxText, onMapData }: Props) 
     };
   }, [audioFile]);
 
-  // Parse GPX when its text changes; default the audio start to the track start.
+  // A GPX upload (explicit) takes precedence; otherwise use a track embedded in
+  // the audio file itself (e.g. GPS Audio Recorder recordings).
+  const track = useMemo(
+    () => gpxTrack ?? embedded?.track ?? null,
+    [gpxTrack, embedded],
+  );
+
+  // Read a GPS track embedded in the audio file's metadata, when present. This
+  // never fails fatally: a file without one just leaves `embedded` null and the
+  // GPX upload remains the way to place windows on the map.
+  useEffect(() => {
+    setEmbedded(null);
+    if (!audioFile) return;
+    let cancelled = false;
+    extractEmbeddedTrack(audioFile)
+      .then((res) => {
+        if (!cancelled && res) setEmbedded(res);
+      })
+      .catch(() => {
+        /* not a recognised embedded-track file — fall back to GPX */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [audioFile]);
+
+  // Parse an uploaded GPX when its text changes.
   useEffect(() => {
     if (!gpxText) {
-      setTrack(null);
+      setGpxTrack(null);
       return;
     }
     try {
-      const t = parseGpx(gpxText.text, gpxText.name);
-      setTrack(t);
-      const range = trackTimeRange(t);
-      if (range) setAudioStart(epochToLocalInput(range[0]));
+      setGpxTrack(parseGpx(gpxText.text, gpxText.name));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      setTrack(null);
+      setGpxTrack(null);
     }
   }, [gpxText]);
+
+  // Default the audio start time from whichever track we have. An uploaded GPX
+  // wins; an embedded track gives us an absolute start (its first fix), so no
+  // manual entry is needed at all.
+  useEffect(() => {
+    if (gpxTrack) {
+      const range = trackTimeRange(gpxTrack);
+      if (range) setAudioStart(epochToLocalInput(range[0]));
+    } else if (embedded && Number.isFinite(embedded.audioStartEpoch)) {
+      setAudioStart(epochToLocalInput(embedded.audioStartEpoch));
+    }
+  }, [gpxTrack, embedded]);
 
   const runAnalysis = useCallback(async () => {
     if (!decoded) return;
@@ -157,10 +194,16 @@ export default function AcousticPanel({ audioFile, gpxText, onMapData }: Props) 
   }, [located, track, metric, onMapData]);
 
   const locatedCount = located?.filter((s) => Number.isFinite(s.lat)).length ?? 0;
+  const embeddedActive = !gpxTrack && !!embedded;
 
   return (
     <div className="panel-body">
-      {!audioFile && <p className="muted">Upload an audio file and a GPX track above.</p>}
+      {!audioFile && (
+        <p className="muted">
+          Upload an audio file above. If it has a GPS track embedded (e.g. a GPS
+          Audio Recorder recording) it maps on its own; otherwise add a GPX.
+        </p>
+      )}
 
       {decoding && <p className="muted">Decoding audio…</p>}
       {decoded && (
@@ -168,9 +211,15 @@ export default function AcousticPanel({ audioFile, gpxText, onMapData }: Props) 
           Audio: {decoded.duration.toFixed(1)} s · {(decoded.sampleRate / 1000).toFixed(1)} kHz
         </p>
       )}
+      {embeddedActive && (
+        <p className="muted">
+          ✓ GPS track read from the audio file — no GPX needed.
+        </p>
+      )}
       {track && (
         <p className="muted">
           Track: {track.name} · {track.points.length} points
+          {embeddedActive ? " · embedded" : ""}
         </p>
       )}
 
@@ -218,6 +267,11 @@ export default function AcousticPanel({ audioFile, gpxText, onMapData }: Props) 
               onChange={(e) => setAudioStart(e.target.value)}
             />
           </label>
+          {embeddedActive && (
+            <p className="muted small">
+              Auto-detected from the embedded GPS track; adjust if needed.
+            </p>
+          )}
           <label className="field">
             Offset: <strong>{offsetSec}s</strong>
             <input
@@ -234,8 +288,11 @@ export default function AcousticPanel({ audioFile, gpxText, onMapData }: Props) 
           {!Number.isFinite(audioStartEpoch) && (
             <p className="error">Set a valid audio start time to place windows on the map.</p>
           )}
-          {track === null && (
-            <p className="error">Upload a GPX track to place windows on the map.</p>
+          {!track && (
+            <p className="error">
+              No GPS track found in the audio file — upload a GPX track to place
+              windows on the map.
+            </p>
           )}
         </section>
       )}
