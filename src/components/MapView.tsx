@@ -16,12 +16,21 @@ export interface MapPoint {
   color: string;
   label?: string;
   rows?: [string, string][];
+  /** Sortable position along the walk (e.g. timestamp or segment start), used to
+   *  order points into a continuous streak. When absent for any point, the array
+   *  order is used instead. */
+  order?: number;
 }
 
 /** A scale guide for how points are coloured. */
 export type MapLegend =
   | { kind: "gradient"; label: string; min: number; max: number; colors: string[] }
   | { kind: "categorical"; label: string; items: { color: string; label: string }[] };
+
+/** How a layer's samples are drawn on the map. `circles` is the classic marker
+ *  per sample; `streak` connects the samples into one line whose colour changes
+ *  along the walk (same per-sample colours as the circles); `both` overlays them. */
+export type RenderMode = "circles" | "streak" | "both";
 
 /** One data layer to draw on the map: its points, an optional track polyline and
  *  a colour-scale legend. `accent` is the layer's identity colour, used for the
@@ -33,6 +42,8 @@ export interface MapLayer {
   points: MapPoint[];
   polyline?: [number, number][];
   legend?: MapLegend;
+  /** Marker style; defaults to `circles`. */
+  render?: RenderMode;
 }
 
 interface MapViewProps {
@@ -72,6 +83,49 @@ function FitBounds({ layers }: { layers: MapLayer[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, key]);
   return null;
+}
+
+/** The details popup for a single sample, shared by circle markers and streak
+ *  segments so a sample's readings are reachable in every render mode. */
+function PointPopup({ layerName, point }: { layerName: string; point: MapPoint }) {
+  if (!point.label && !point.rows) return null;
+  return (
+    <Popup>
+      <div className="popup">
+        <strong>{point.label ? `${layerName} · ${point.label}` : layerName}</strong>
+        {point.rows && (
+          <table>
+            <tbody>
+              {point.rows.map(([k, v]) => (
+                <tr key={k}>
+                  <td className="popup-key">{k}</td>
+                  <td>{v}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </Popup>
+  );
+}
+
+/** Order a layer's points into walk sequence and pair each consecutive point
+ *  into a coloured segment. Each segment takes the colour of the point it starts
+ *  from, so the line's colour changes along the walk exactly as the circles do. */
+function streakSegments(
+  points: MapPoint[],
+): { from: MapPoint; positions: [[number, number], [number, number]] }[] {
+  const ordered = points.every((p) => Number.isFinite(p.order))
+    ? [...points].sort((a, b) => (a.order as number) - (b.order as number))
+    : points;
+  const segs: { from: MapPoint; positions: [[number, number], [number, number]] }[] = [];
+  for (let i = 0; i < ordered.length - 1; i++) {
+    const a = ordered[i];
+    const b = ordered[i + 1];
+    segs.push({ from: a, positions: [[a.lat, a.lon], [b.lat, b.lon]] });
+  }
+  return segs;
 }
 
 function LegendBody({ legend }: { legend: MapLegend }) {
@@ -138,49 +192,47 @@ export default function MapView({ layers }: MapViewProps) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           maxZoom={19}
         />
-        {layers.map((layer) => (
-          <Fragment key={layer.id}>
-            {layer.polyline && layer.polyline.length > 1 && (
-              <Polyline
-                positions={layer.polyline}
-                pathOptions={{ color: layer.accent, weight: 2, opacity: 0.7 }}
-              />
-            )}
-            {layer.points.map((p) => (
-              <CircleMarker
-                key={`${layer.id}:${p.id}`}
-                center={[p.lat, p.lon]}
-                radius={6}
-                pathOptions={{
-                  color: layer.accent,
-                  weight: 1.5,
-                  fillColor: p.color,
-                  fillOpacity: 0.85,
-                }}
-              >
-                {(p.label || p.rows) && (
-                  <Popup>
-                    <div className="popup">
-                      <strong>{p.label ? `${layer.name} · ${p.label}` : layer.name}</strong>
-                      {p.rows && (
-                        <table>
-                          <tbody>
-                            {p.rows.map(([k, v]) => (
-                              <tr key={k}>
-                                <td className="popup-key">{k}</td>
-                                <td>{v}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
-                    </div>
-                  </Popup>
-                )}
-              </CircleMarker>
-            ))}
-          </Fragment>
-        ))}
+        {layers.map((layer) => {
+          const mode = layer.render ?? "circles";
+          const showCircles = mode === "circles" || mode === "both";
+          const showStreak = mode === "streak" || mode === "both";
+          return (
+            <Fragment key={layer.id}>
+              {layer.polyline && layer.polyline.length > 1 && (
+                <Polyline
+                  positions={layer.polyline}
+                  pathOptions={{ color: layer.accent, weight: 2, opacity: 0.7 }}
+                />
+              )}
+              {showStreak &&
+                streakSegments(layer.points).map((seg, i) => (
+                  <Polyline
+                    key={`${layer.id}:streak:${i}`}
+                    positions={seg.positions}
+                    pathOptions={{ color: seg.from.color, weight: 5, opacity: 0.9 }}
+                  >
+                    <PointPopup layerName={layer.name} point={seg.from} />
+                  </Polyline>
+                ))}
+              {showCircles &&
+                layer.points.map((p) => (
+                  <CircleMarker
+                    key={`${layer.id}:${p.id}`}
+                    center={[p.lat, p.lon]}
+                    radius={6}
+                    pathOptions={{
+                      color: layer.accent,
+                      weight: 1.5,
+                      fillColor: p.color,
+                      fillOpacity: 0.85,
+                    }}
+                  >
+                    <PointPopup layerName={layer.name} point={p} />
+                  </CircleMarker>
+                ))}
+            </Fragment>
+          );
+        })}
         <FitBounds layers={layers} />
       </MapContainer>
       <LegendStack layers={layers} />

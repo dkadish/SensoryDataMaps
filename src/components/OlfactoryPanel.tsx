@@ -97,7 +97,7 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
           rows.push(["Air quality", `${e.gasResistanceOhm.toFixed(0)} Ω`]);
       }
       if (s.accuracyM != null) rows.push(["GPS ±", `${s.accuracyM.toFixed(1)} m`]);
-      return { id: i, lat: s.lat, lon: s.lon, color, label: `Sample ${i + 1}`, rows };
+      return { id: i, lat: s.lat, lon: s.lon, color, label: `Sample ${i + 1}`, rows, order: s.timestamp };
     });
 
     // Draw the walk path if timestamps let us order the samples.

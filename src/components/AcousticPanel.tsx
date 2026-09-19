@@ -181,6 +181,7 @@ export default function AcousticPanel({ layerId, audioFile, gpxText, onLayerData
           color: Number.isFinite(v) ? sequentialColor((v - lo) / span) : "#ccc",
           label: `${s.startSec.toFixed(0)} s`,
           rows,
+          order: s.startSec,
         };
       });
     const legend: MapLegend | undefined = Number.isFinite(lo)
