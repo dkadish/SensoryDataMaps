@@ -89,6 +89,48 @@ export. Only track points are read:
 - `<ele>` (elevation, m) is optional.
 - Waypoints (`<wpt>`) and routes (`<rte>`) are ignored for now.
 
+A GPX is **optional** when the audio file already carries its own GPS track —
+see below.
+
+---
+
+## 2b. GPS track embedded in the audio file
+
+Some recorders write the walk track straight into the audio file's metadata, so
+the recording can be mapped **without a separate GPX**. The app currently reads
+the format produced by the
+[**GPS Audio Recorder**](https://play.google.com/store/apps/details?id=com.gpsaudiorecorder)
+Android app.
+
+The track lives in the M4A/MP4 container as an iTunes-style *freeform* metadata
+atom `----:com.apple.iTunes:rGPS` (path `moov › udta › meta › ilst`). Its
+payload is JSON:
+
+```json
+{
+  "v": 1,
+  "start": [55.6026, 13.0793],
+  "path": [
+    [55.6026, 13.0793, 1789834292, 30.8],
+    [55.6025, 13.0795, 1789834296, 19.9]
+  ]
+}
+```
+
+- Each `path` entry is `[latitude, longitude, unixSeconds, accuracyMetres]`.
+  Only latitude, longitude and the timestamp are used today; the 4th value
+  (GPS accuracy in metres) is currently ignored, and there is no elevation.
+- Timestamps are **absolute Unix epoch seconds**, so — unlike a GPX — the app
+  also learns the audio's start time (second 0 = the first fix) and fills the
+  "Audio start time" field automatically. No manual time-sync is needed (you can
+  still nudge it with the offset slider).
+- Detection is automatic on upload: if the tag is present it is used and the GPX
+  upload becomes unnecessary; if it is absent (any other audio file) the app
+  falls back to the GPX flow. An uploaded GPX always takes precedence over an
+  embedded track.
+- Parsing only reads container metadata; the audio samples are untouched, and a
+  file that is not MP4 or lacks the tag is silently ignored (no error).
+
 ---
 
 ## 3. Audio file
@@ -96,15 +138,19 @@ export. Only track points are read:
 Any format the browser's Web Audio API can decode — in practice **WAV, FLAC,
 MP3, M4A/AAC, OGG** (support varies slightly by browser; WAV and MP3 are safe).
 
-Audio carries **no reliable absolute start time**, so the app needs one of:
+A plain audio file carries **no reliable absolute start time**, so to place its
+windows on the map the app needs a track *and* a start time. It gets these from
+one of:
 
-1. A **start date-time** you enter for the recording, or
-2. "Align audio start to the first GPX point" (assumes you started the recorder
-   and the track together), plus
+1. An **embedded GPS track** (section 2b) — provides both the track and an
+   absolute start time automatically, or
+2. A **GPX track** plus either a **start date-time** you enter for the
+   recording, or the track's first point (assumes you started the recorder and
+   the track together), plus
 3. A fine **offset (seconds)** slider to nudge the alignment.
 
-Each analysis window's location is found by linearly interpolating the GPX track
-at `audioStart + windowTime`. Windows outside the track's time range are left
+Each analysis window's location is found by linearly interpolating the track at
+`audioStart + windowTime`. Windows outside the track's time range are left
 un-located (and not mapped).
 
 ---
