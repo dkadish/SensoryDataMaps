@@ -9,6 +9,15 @@ built to deploy as a static site to GitHub Pages, Netlify, or any static host.
 
 ## What it does
 
+### Layers
+- Add **multiple olfactory and/or acoustic tracks** and view them **together as
+  layers** on one map. Each layer keeps its own controls (clustering, colouring,
+  audio analysis, time-sync) and gets a distinct **accent colour** for its track
+  line and marker outlines so overlapping walks stay legible.
+- Toggle each layer's **visibility**, **rename** it, or **remove** it. Every
+  visible layer contributes its points, its track line and its colour-scale
+  legend, and the map fits to all of them at once.
+
 ### Olfactory
 - Load a **BRIAN CSV** export (gas-sensor voltages + GPS; see
   [`docs/data-formats.md`](docs/data-formats.md)).
@@ -53,11 +62,12 @@ npm run typecheck  # type-check only
 `sample-data/` contains real walks you can load immediately:
 
 - `smellwalk-2026-09-11.csv` — a 171-sample BRIAN smell walk (8 gas sensors +
-  GPS). Load it in the **Olfactory** tab; clustering + dendrogram work out of
-  the box.
+  GPS). Add it with **+ Add olfactory layer**; clustering + dendrogram work out
+  of the box.
 - `kungsparken-sound-walk.gpx` — a Strava GPX sound-walk track (3,909 points).
-  Load it in the **Acoustic** tab to see the route; add your own audio recorded
-  over the same period to compute and place metrics.
+  Add your own audio with **+ Add acoustic layer**, then upload this GPX inside
+  the layer to see the route and place the computed metrics along it. Load both
+  sample files to see the two walks overlaid as layers.
 
 ## Data formats
 

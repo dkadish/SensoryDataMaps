@@ -87,6 +87,113 @@ body,
 .filebtn input {
   display: none;
 }
+.filebtn.small {
+  padding: 7px;
+  font-size: 0.78rem;
+}
+
+.layers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.layer-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.layer-card.hidden-layer {
+  opacity: 0.6;
+}
+.layer-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 6px;
+}
+.layer-accent {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+.layer-toggle {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0 2px;
+  color: var(--muted);
+}
+.layer-name {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+.layer-name-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 2px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+}
+.layer-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.icon-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+.icon-btn:hover {
+  background: var(--panel);
+}
+.icon-btn.danger:hover {
+  background: #fbeaea;
+  color: var(--error);
+}
+.icon-btn input {
+  display: none;
+}
+.layer-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 8px;
+}
+.layer-kind {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.layer-content {
+  padding: 4px 10px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
 .panel-body {
   display: flex;
@@ -235,11 +342,18 @@ input[type="range"] {
   width: 100%;
 }
 
-.map-legend {
+.map-legends {
   position: absolute;
   left: 10px;
   bottom: 22px;
   z-index: 800;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100% - 44px);
+  overflow-y: auto;
+}
+.map-legend {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -247,6 +361,15 @@ input[type="range"] {
   font-size: 0.75rem;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   max-width: 220px;
+}
+.map-legend-layer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin-bottom: 5px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
 }
 .map-legend-title {
   font-weight: 600;

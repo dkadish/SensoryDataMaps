@@ -13,8 +13,10 @@ import type { MapLegend, MapPoint } from "./MapView";
 import Dendrogram from "./Dendrogram";
 
 interface Props {
+  layerId: string;
   dataset: OlfactoryDataset;
-  onMapData: (
+  onLayerData: (
+    layerId: string,
     points: MapPoint[],
     polyline?: [number, number][],
     legend?: MapLegend,
@@ -27,7 +29,7 @@ function fmtTime(t: number): string {
   return Number.isFinite(t) ? new Date(t).toLocaleString() : "—";
 }
 
-export default function OlfactoryPanel({ dataset, onMapData }: Props) {
+export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props) {
   const allChannels = dataset.featureChannels;
   const envChannels = dataset.envChannels;
   // Label lookup for both gas channels and env metrics (for the colour dropdown).
@@ -119,8 +121,8 @@ export default function OlfactoryPanel({ dataset, onMapData }: Props) {
           }
         : undefined;
 
-    onMapData(points, polyline, legend);
-  }, [dataset, assignments, selected, colorMode, envChannels, onMapData]);
+    onLayerData(layerId, points, polyline, legend);
+  }, [layerId, dataset, assignments, selected, colorMode, envChannels, onLayerData]);
 
   const toggleChannel = (c: string) => {
     setSelected((prev) =>
