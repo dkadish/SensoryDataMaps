@@ -229,6 +229,49 @@ input[type="range"] {
   flex: 1;
   height: 100%;
 }
+.mapwrap {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+.map-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 22px;
+  z-index: 800;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  max-width: 220px;
+}
+.map-legend-title {
+  font-weight: 600;
+  margin-bottom: 5px;
+  color: var(--text);
+}
+.map-legend-bar {
+  height: 10px;
+  width: 160px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+.map-legend-ticks {
+  display: flex;
+  justify-content: space-between;
+  width: 160px;
+  margin-top: 3px;
+  color: var(--muted);
+}
+.map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
 .map-hint {
   position: absolute;
   top: 12px;

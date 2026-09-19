@@ -5,14 +5,18 @@ import { parseGpx, trackTimeRange } from "../acoustic/gpx";
 import { locateSegments } from "../acoustic/sync";
 import { meydaProvider, METRIC_LABELS } from "../acoustic/meydaProvider";
 import { DEFAULT_ANALYSIS_OPTIONS } from "../acoustic/provider";
-import { sequentialColor } from "../lib/color";
+import { sequentialColor, sequentialSwatches } from "../lib/color";
 import { extent } from "../lib/stats";
-import type { MapPoint } from "./MapView";
+import type { MapLegend, MapPoint } from "./MapView";
 
 interface Props {
   audioFile: File | null;
   gpxText: { text: string; name: string } | null;
-  onMapData: (points: MapPoint[], polyline?: [number, number][]) => void;
+  onMapData: (
+    points: MapPoint[],
+    polyline?: [number, number][],
+    legend?: MapLegend,
+  ) => void;
 }
 
 const FRAME_SIZES = [1024, 2048, 4096];
@@ -140,7 +144,16 @@ export default function AcousticPanel({ audioFile, gpxText, onMapData }: Props) 
           rows,
         };
       });
-    onMapData(points, polyline);
+    const legend: MapLegend | undefined = Number.isFinite(lo)
+      ? {
+          kind: "gradient",
+          label: METRIC_LABELS[metric] ?? metric,
+          min: lo,
+          max: hi,
+          colors: sequentialSwatches(12),
+        }
+      : undefined;
+    onMapData(points, polyline, legend);
   }, [located, track, metric, onMapData]);
 
   const locatedCount = located?.filter((s) => Number.isFinite(s.lat)).length ?? 0;

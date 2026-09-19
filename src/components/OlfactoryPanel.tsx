@@ -6,15 +6,19 @@ import {
   LINKAGE_METHODS,
   type LinkageMethod,
 } from "../olfactory/clustering";
-import { categoricalColor, sequentialColor } from "../lib/color";
+import { categoricalColor, sequentialColor, sequentialSwatches } from "../lib/color";
 import { extent } from "../lib/stats";
 import { sampleValue } from "../olfactory/values";
-import type { MapPoint } from "./MapView";
+import type { MapLegend, MapPoint } from "./MapView";
 import Dendrogram from "./Dendrogram";
 
 interface Props {
   dataset: OlfactoryDataset;
-  onMapData: (points: MapPoint[], polyline?: [number, number][]) => void;
+  onMapData: (
+    points: MapPoint[],
+    polyline?: [number, number][],
+    legend?: MapLegend,
+  ) => void;
 }
 
 const CLUSTER_MODE = "__cluster__";
@@ -102,8 +106,21 @@ export default function OlfactoryPanel({ dataset, onMapData }: Props) {
     const polyline: [number, number][] | undefined =
       timed.length > 1 ? timed.map(({ s }) => [s.lat, s.lon]) : undefined;
 
-    onMapData(points, polyline);
-  }, [dataset, assignments, selected, colorMode, onMapData]);
+    // Colour scale guide: a gradient when colouring by a value; cluster colours
+    // are already listed (with counts) in the panel.
+    const legend: MapLegend | undefined =
+      colorMode !== CLUSTER_MODE && Number.isFinite(lo)
+        ? {
+            kind: "gradient",
+            label: envChannels.find((e) => e.key === colorMode)?.label ?? colorMode,
+            min: lo,
+            max: hi,
+            colors: sequentialSwatches(12),
+          }
+        : undefined;
+
+    onMapData(points, polyline, legend);
+  }, [dataset, assignments, selected, colorMode, envChannels, onMapData]);
 
   const toggleChannel = (c: string) => {
     setSelected((prev) =>

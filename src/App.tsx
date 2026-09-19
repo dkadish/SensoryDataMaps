@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import MapView, { type MapPoint } from "./components/MapView";
+import MapView, { type MapLegend, type MapPoint } from "./components/MapView";
 import OlfactoryPanel from "./components/OlfactoryPanel";
 import AcousticPanel from "./components/AcousticPanel";
 import { parseBrianCsv } from "./olfactory/parseBrianCsv";
@@ -12,6 +12,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>("olfactory");
   const [points, setPoints] = useState<MapPoint[]>([]);
   const [polyline, setPolyline] = useState<[number, number][] | undefined>();
+  const [legend, setLegend] = useState<MapLegend | undefined>();
 
   // Olfactory input
   const [dataset, setDataset] = useState<OlfactoryDataset | null>(null);
@@ -23,9 +24,10 @@ export default function App() {
   const [gpxText, setGpxText] = useState<{ text: string; name: string } | null>(null);
 
   const onMapData = useCallback(
-    (p: MapPoint[], line?: [number, number][]) => {
+    (p: MapPoint[], line?: [number, number][], lgnd?: MapLegend) => {
       setPoints(p);
       setPolyline(line);
+      setLegend(lgnd);
     },
     [],
   );
@@ -34,6 +36,7 @@ export default function App() {
     setMode(m);
     setPoints([]);
     setPolyline(undefined);
+    setLegend(undefined);
   };
 
   const handleCsv = async (file: File) => {
@@ -135,7 +138,7 @@ export default function App() {
       </aside>
 
       <main className="map-pane">
-        <MapView points={points} polyline={polyline} />
+        <MapView points={points} polyline={polyline} legend={legend} />
         {points.length === 0 && (
           <div className="map-hint">Load data to plot it here.</div>
         )}
