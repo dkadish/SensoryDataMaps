@@ -9,6 +9,7 @@ import { DEFAULT_ANALYSIS_OPTIONS } from "../acoustic/provider";
 import { sequentialColor, sequentialSwatches } from "../lib/color";
 import { extent } from "../lib/stats";
 import type { MapLegend, MapPoint } from "./MapView";
+import HelpCallout from "./HelpCallout";
 
 interface Props {
   layerId: string;
@@ -201,6 +202,56 @@ export default function AcousticPanel({ layerId, audioFile, gpxText, onLayerData
 
   return (
     <div className="panel-body">
+      <HelpCallout title="Help: acoustic layers">
+        <p>
+          Map an audio recording along a GPS track and colour it by an acoustic
+          metric (level, spectral centroid, and more).
+        </p>
+        <ol>
+          <li>
+            <strong>Get the track.</strong> Recordings from the{" "}
+            <strong>GPS Audio Recorder</strong> app carry a GPS track embedded in
+            their metadata — they map on their own, with the start time detected
+            automatically. For any other audio, upload a <strong>GPX track</strong>{" "}
+            (e.g. a Strava export) with the button above.
+          </li>
+          <li>
+            <strong>Run analysis.</strong> Pick a window length and FFT frame size,
+            then <em>Run analysis</em> to compute per-window metrics.
+          </li>
+          <li>
+            <strong>Align to the track.</strong> If needed, set the audio start time
+            and nudge the offset slider so windows land in the right place.
+          </li>
+          <li>
+            <strong>Colour the map.</strong> Choose which metric to colour windows
+            by.
+          </li>
+        </ol>
+        <p>
+          <strong>Get the GPS Audio Recorder app</strong> to capture audio with an
+          embedded GPS track:
+        </p>
+        <p className="store-links">
+          <a
+            className="store-link"
+            href="https://apps.apple.com/app/gps-audio-recorder/id6764623164"
+            target="_blank"
+            rel="noreferrer"
+          >
+            iOS (App Store)
+          </a>
+          <a
+            className="store-link"
+            href="https://play.google.com/store/apps/details?id=com.gpsaudiorecorder&hl=en"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Android (Google Play)
+          </a>
+        </p>
+      </HelpCallout>
+
       {!audioFile && (
         <p className="muted">
           Upload an audio file above. If it has a GPS track embedded (e.g. a GPS

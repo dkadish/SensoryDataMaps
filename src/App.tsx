@@ -8,6 +8,7 @@ import MapView, {
 import OlfactoryPanel from "./components/OlfactoryPanel";
 import AcousticPanel from "./components/AcousticPanel";
 import LayerCard from "./components/LayerCard";
+import HelpCallout from "./components/HelpCallout";
 import { parseBrianCsv } from "./olfactory/parseBrianCsv";
 import { readTextFile } from "./lib/readFile";
 import { categoricalColor } from "./lib/color";
@@ -169,6 +170,35 @@ export default function App() {
           <h1>Sensory Data Maps</h1>
           <p className="tagline">Map & analyse olfactory and acoustic walks — as layers</p>
         </header>
+
+        <HelpCallout title="How to use Sensory Data Maps" defaultOpen={layers.length === 0}>
+          <p>
+            Map and compare sensory walks — <strong>olfactory</strong>{" "}
+            (electronic-nose) and <strong>acoustic</strong> (audio) — as layers on
+            one map. Everything runs in your browser; no data leaves your machine.
+          </p>
+          <ol>
+            <li>
+              <strong>Add a layer.</strong> Use <em>+ Add olfactory layer</em> for a
+              BRIAN CSV export, or <em>+ Add acoustic layer</em> for an audio file.
+            </li>
+            <li>
+              <strong>Configure it.</strong> Each layer opens its own controls —
+              clustering and colouring for olfactory data, analysis windows and
+              track-alignment for audio. Expand the <em>Help</em> box inside a layer
+              for details.
+            </li>
+            <li>
+              <strong>Combine &amp; compare.</strong> Toggle visibility, rename, or
+              set each layer's map style (Circles, Streak or Both). The map fits to
+              all visible layers at once.
+            </li>
+          </ol>
+          <p>
+            No data yet? Load the files in <code>sample-data/</code>, or see{" "}
+            <code>docs/data-formats.md</code> for the accepted formats.
+          </p>
+        </HelpCallout>
 
         <section className="upload">
           <label className="filebtn">
