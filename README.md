@@ -41,7 +41,7 @@ built to deploy as a static site to GitHub Pages, Netlify, or any static host.
   Strava export) as before.
 - Compute **basic per-window acoustic metrics** in the browser (via
   [Meyda](https://meyda.js.org/)): RMS / level (dBFS), zero-crossing rate,
-  spectral centroid, 85 % spectral rolloff, and spectral flatness.
+  spectral centroid, 85 % spectral rolloff, spectral flatness, and spectral flux.
 - **Time-sync** the audio to the track (set the recording start time + a fine
   offset slider) so each window lands at the right place on the map.
 - Map every window, coloured by any metric.
