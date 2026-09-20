@@ -216,7 +216,11 @@ export default function App() {
             + Add acoustic layer (audio)
             <input
               type="file"
-              accept="audio/*"
+              // iOS/iPadOS Files picker greys out .m4a files under a bare
+              // `audio/*` filter (they carry the com.apple.m4a-audio UTI, which
+              // Safari/Chrome fail to map back to audio/*). Listing explicit
+              // extensions and container MIME types keeps them selectable.
+              accept="audio/*,.m4a,.mp4,.m4b,.aac,.mp3,.wav,.ogg,.oga,.flac,.caf,audio/mp4,audio/x-m4a,audio/aac,audio/mpeg,audio/wav,audio/ogg,audio/flac"
               onChange={(e) => {
                 if (e.target.files?.[0]) handleAddAudio(e.target.files[0]);
                 e.target.value = "";
