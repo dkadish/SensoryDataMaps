@@ -3,6 +3,7 @@ import MapView, {
   type MapLayer,
   type MapLegend,
   type MapPoint,
+  type PlayheadMarker,
   type RenderMode,
 } from "./components/MapView";
 import OlfactoryPanel from "./components/OlfactoryPanel";
@@ -48,6 +49,7 @@ type Layer = OlfactoryLayer | AcousticLayer;
 export default function App() {
   const [layers, setLayers] = useState<Layer[]>([]);
   const [outputs, setOutputs] = useState<Record<string, LayerOutput>>({});
+  const [playheads, setPlayheads] = useState<Record<string, { lat: number; lon: number }>>({});
   const [addError, setAddError] = useState<string | null>(null);
   const seq = useRef(0);
 
@@ -56,6 +58,21 @@ export default function App() {
   const onLayerData = useCallback(
     (id: string, points: MapPoint[], polyline?: [number, number][], legend?: MapLegend) => {
       setOutputs((prev) => ({ ...prev, [id]: { points, polyline, legend } }));
+    },
+    [],
+  );
+
+  // Live GPS position of an acoustic layer during playback, keyed by id. A null
+  // position removes the layer's playhead marker.
+  const onPlayhead = useCallback(
+    (id: string, pos: { lat: number; lon: number } | null) => {
+      setPlayheads((prev) => {
+        if (pos) return { ...prev, [id]: pos };
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     },
     [],
   );
@@ -139,6 +156,12 @@ export default function App() {
       delete next[id];
       return next;
     });
+    setPlayheads((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   // Combine visible layers' outputs for the map.
@@ -162,6 +185,21 @@ export default function App() {
   );
 
   const totalPoints = mapLayers.reduce((n, l) => n + l.points.length, 0);
+
+  // Playhead markers for currently-visible layers, tinted with the layer accent.
+  const playheadMarkers = useMemo<PlayheadMarker[]>(
+    () =>
+      layers
+        .filter((l) => l.visible && playheads[l.id])
+        .map((l) => ({
+          id: l.id,
+          name: l.name,
+          accent: l.accent,
+          lat: playheads[l.id].lat,
+          lon: playheads[l.id].lon,
+        })),
+    [layers, playheads],
+  );
 
   return (
     <div className="app">
@@ -276,9 +314,11 @@ export default function App() {
                   </label>
                   <AcousticPanel
                     layerId={layer.id}
+                    accent={layer.accent}
                     audioFile={layer.audioFile}
                     gpxText={layer.gpxText}
                     onLayerData={onLayerData}
+                    onPlayhead={onPlayhead}
                   />
                 </>
               )}
@@ -292,7 +332,7 @@ export default function App() {
       </aside>
 
       <main className="map-pane">
-        <MapView layers={mapLayers} />
+        <MapView layers={mapLayers} playheads={playheadMarkers} />
         {totalPoints === 0 && (
           <div className="map-hint">
             {layers.length === 0 ? "Add a layer to plot it here." : "Configure a layer to plot it here."}

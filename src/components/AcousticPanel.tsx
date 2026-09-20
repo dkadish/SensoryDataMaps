@@ -3,7 +3,8 @@ import type { AcousticSegment, GpxTrack } from "../types";
 import { decodeAudioFile, type DecodedAudio } from "../acoustic/audio";
 import { parseGpx, trackTimeRange } from "../acoustic/gpx";
 import { extractEmbeddedTrack, type EmbeddedTrackResult } from "../acoustic/embeddedTrack";
-import { locateSegments } from "../acoustic/sync";
+import { locateSegments, interpolateTrack } from "../acoustic/sync";
+import AudioPlayer from "./AudioPlayer";
 import { meydaProvider, METRIC_LABELS } from "../acoustic/meydaProvider";
 import { DEFAULT_ANALYSIS_OPTIONS } from "../acoustic/provider";
 import { sequentialColor, sequentialSwatches } from "../lib/color";
@@ -13,6 +14,7 @@ import HelpCallout from "./HelpCallout";
 
 interface Props {
   layerId: string;
+  accent: string;
   audioFile: File | null;
   gpxText: { text: string; name: string } | null;
   onLayerData: (
@@ -21,6 +23,8 @@ interface Props {
     polyline?: [number, number][],
     legend?: MapLegend,
   ) => void;
+  /** Report the live GPS position as the audio plays (null clears the marker). */
+  onPlayhead?: (layerId: string, pos: { lat: number; lon: number } | null) => void;
 }
 
 const FRAME_SIZES = [1024, 2048, 4096];
@@ -31,7 +35,14 @@ function epochToLocalInput(epoch: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-export default function AcousticPanel({ layerId, audioFile, gpxText, onLayerData }: Props) {
+export default function AcousticPanel({
+  layerId,
+  accent,
+  audioFile,
+  gpxText,
+  onLayerData,
+  onPlayhead,
+}: Props) {
   const [decoded, setDecoded] = useState<DecodedAudio | null>(null);
   const [decoding, setDecoding] = useState(false);
   const [gpxTrack, setGpxTrack] = useState<GpxTrack | null>(null);
@@ -150,6 +161,41 @@ export default function AcousticPanel({ layerId, audioFile, gpxText, onLayerData
     return locateSegments(segments, track, { audioStartEpoch, offsetSec });
   }, [segments, track, audioStartEpoch, offsetSec]);
 
+  // Track points usable for interpolating the playback position.
+  const trackPts = useMemo(
+    () => track?.points.filter((p) => Number.isFinite(p.timestamp)) ?? null,
+    [track],
+  );
+
+  // Map a playback time (seconds into the file) to a GPS position on the track,
+  // using the same clock as the analysis windows, and report it upward.
+  const handlePlaybackTime = useCallback(
+    (sec: number) => {
+      if (!onPlayhead) return;
+      if (!trackPts || trackPts.length === 0 || !Number.isFinite(audioStartEpoch)) {
+        onPlayhead(layerId, null);
+        return;
+      }
+      const t = audioStartEpoch + (sec + offsetSec) * 1000;
+      const loc = interpolateTrack(trackPts, t);
+      onPlayhead(layerId, loc ? { lat: loc.lat, lon: loc.lon } : null);
+    },
+    [onPlayhead, trackPts, audioStartEpoch, offsetSec, layerId],
+  );
+
+  const handlePlayingChange = useCallback(
+    (isPlaying: boolean) => {
+      // Clear the map marker when playback stops.
+      if (!isPlaying) onPlayhead?.(layerId, null);
+    },
+    [onPlayhead, layerId],
+  );
+
+  // Drop the playhead if the layer unmounts.
+  useEffect(() => {
+    return () => onPlayhead?.(layerId, null);
+  }, [onPlayhead, layerId]);
+
   // Push map data upward.
   useEffect(() => {
     const polyline: [number, number][] | undefined =
@@ -216,6 +262,11 @@ export default function AcousticPanel({ layerId, audioFile, gpxText, onLayerData
             (e.g. a Strava export) with the button above.
           </li>
           <li>
+            <strong>Play it back.</strong> Use the <em>Playback</em> controls to
+            listen to the recording. A marker walks the GPS track in time with the
+            audio, and the <em>FFT spectrum</em> shows the live frequency content.
+          </li>
+          <li>
             <strong>Run analysis.</strong> Pick a window length and FFT frame size,
             then <em>Run analysis</em> to compute per-window metrics.
           </li>
@@ -275,6 +326,29 @@ export default function AcousticPanel({ layerId, audioFile, gpxText, onLayerData
           Track: {track.name} · {track.points.length} points
           {embeddedActive ? " · embedded" : ""}
         </p>
+      )}
+
+      {audioFile && (
+        <section>
+          <h3>Playback</h3>
+          <AudioPlayer
+            file={audioFile}
+            accent={accent}
+            onTime={handlePlaybackTime}
+            onPlayingChange={handlePlayingChange}
+          />
+          {track ? (
+            <p className="muted small">
+              A marker follows the GPS track as the audio plays. Adjust the audio
+              start time or offset below if it drifts.
+            </p>
+          ) : (
+            <p className="muted small">
+              Add a GPS track (embedded or GPX) to see the position on the map
+              during playback.
+            </p>
+          )}
+        </section>
       )}
 
       <section>
