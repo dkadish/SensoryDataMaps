@@ -340,6 +340,87 @@ input[type="range"] {
   padding: 4px;
 }
 
+.help-callout {
+  border: 1px solid #cfe3f1;
+  background: #f0f7fc;
+  border-radius: 8px;
+  padding: 0;
+  font-size: 0.82rem;
+}
+.help-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+  list-style: none;
+  user-select: none;
+}
+.help-summary::-webkit-details-marker {
+  display: none;
+}
+.help-summary::after {
+  content: "▸";
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 400;
+  transition: transform 0.15s ease;
+}
+.help-callout[open] > .help-summary::after {
+  transform: rotate(90deg);
+}
+.help-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.help-body {
+  padding: 0 12px 12px;
+  color: var(--text);
+  line-height: 1.45;
+}
+.help-body p {
+  margin: 6px 0;
+}
+.help-body ol,
+.help-body ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.help-body li {
+  margin: 3px 0;
+}
+.help-body a {
+  color: var(--accent);
+}
+.help-body code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.help-body .store-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 2px;
+}
+.help-body .store-link {
+  display: inline-block;
+  padding: 5px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.help-body .store-link:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
 .muted {
   color: var(--muted);
   font-size: 0.85rem;

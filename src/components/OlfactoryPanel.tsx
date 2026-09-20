@@ -11,6 +11,7 @@ import { extent } from "../lib/stats";
 import { sampleValue } from "../olfactory/values";
 import type { MapLegend, MapPoint } from "./MapView";
 import Dendrogram from "./Dendrogram";
+import HelpCallout from "./HelpCallout";
 
 interface Props {
   layerId: string;
@@ -139,6 +140,32 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
 
   return (
     <div className="panel-body">
+      <HelpCallout title="Help: olfactory layers">
+        <p>
+          Cluster and map a BRIAN smell walk — gas-sensor readings plotted at each
+          GPS sample.
+        </p>
+        <ol>
+          <li>
+            <strong>Pick channels.</strong> Choose which gas-sensor channels feed
+            the clustering. Environmental metrics are available but off by default.
+          </li>
+          <li>
+            <strong>Cluster.</strong> Choose a linkage method and drag the{" "}
+            <em>Clusters (k)</em> slider to cut the tree into groups. The{" "}
+            <em>Dendrogram</em> shows the hierarchy, coloured to match the map.
+          </li>
+          <li>
+            <strong>Colour the map.</strong> Colour points by cluster, or by any
+            single channel or environmental value.
+          </li>
+        </ol>
+        <p>
+          Load a <strong>BRIAN CSV</strong> export; see{" "}
+          <code>docs/data-formats.md</code> for the format.
+        </p>
+      </HelpCallout>
+
       <p className="muted">
         {dataset.samples.length.toLocaleString()} samples · {allChannels.length} channels
       </p>
