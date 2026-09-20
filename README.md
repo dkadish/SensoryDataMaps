@@ -4,6 +4,8 @@ A browser app for **rapidly mapping and analysing sensory data collected on
 walks** — olfactory (electronic-nose) data and acoustic (audio) data — and
 plotting it on an interactive map.
 
+**🌐 Live site: [dkadish.github.io/SensoryDataMaps](https://dkadish.github.io/SensoryDataMaps/)**
+
 It runs entirely in the browser (no server, no data leaves your machine) and is
 built to deploy as a static site to GitHub Pages, Netlify, or any static host.
 
@@ -91,7 +93,8 @@ VITE_BASE=/SensoryDataMaps/ npm run build
 
 A GitHub Actions workflow (`.github/workflows/deploy.yml`) does this
 automatically and publishes to Pages on every push to the default branch — just
-enable Pages → "GitHub Actions" in the repo settings.
+enable Pages → "GitHub Actions" in the repo settings. The live deployment is at
+[dkadish.github.io/SensoryDataMaps](https://dkadish.github.io/SensoryDataMaps/).
 
 ## Tech stack
 
