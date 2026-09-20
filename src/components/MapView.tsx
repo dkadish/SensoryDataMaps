@@ -1,4 +1,4 @@
-import { Fragment, useEffect } from "react";
+import { Fragment, memo, useEffect } from "react";
 import {
   CircleMarker,
   MapContainer,
@@ -46,8 +46,19 @@ export interface MapLayer {
   render?: RenderMode;
 }
 
+/** The live GPS position of an acoustic layer during audio playback. */
+export interface PlayheadMarker {
+  id: string;
+  name: string;
+  accent: string;
+  lat: number;
+  lon: number;
+}
+
 interface MapViewProps {
   layers: MapLayer[];
+  /** Live playback positions, one per playing layer, drawn on top of everything. */
+  playheads?: PlayheadMarker[];
 }
 
 /** Compact number formatting for legend ticks across very different ranges. */
@@ -178,7 +189,88 @@ function LegendStack({ layers }: { layers: MapLayer[] }) {
   );
 }
 
-export default function MapView({ layers }: MapViewProps) {
+/** All of a single layer's drawn geometry: its track line, streak and/or
+ *  circle markers. Memoised so frequent playhead updates — which re-render
+ *  MapView — don't churn every layer's markers, only the playhead itself. */
+const LayerGraphics = memo(function LayerGraphics({ layer }: { layer: MapLayer }) {
+  const mode = layer.render ?? "circles";
+  const showCircles = mode === "circles" || mode === "both";
+  const showStreak = mode === "streak" || mode === "both";
+  return (
+    <>
+      {layer.polyline && layer.polyline.length > 1 && (
+        <Polyline
+          positions={layer.polyline}
+          pathOptions={{ color: layer.accent, weight: 2, opacity: 0.7 }}
+        />
+      )}
+      {showStreak &&
+        streakSegments(layer.points).map((seg, i) => (
+          <Polyline
+            key={`${layer.id}:streak:${i}`}
+            positions={seg.positions}
+            pathOptions={{ color: seg.from.color, weight: 5, opacity: 0.9 }}
+          >
+            <PointPopup layerName={layer.name} point={seg.from} />
+          </Polyline>
+        ))}
+      {showCircles &&
+        layer.points.map((p) => (
+          <CircleMarker
+            key={`${layer.id}:${p.id}`}
+            center={[p.lat, p.lon]}
+            radius={6}
+            pathOptions={{
+              color: layer.accent,
+              weight: 1.5,
+              fillColor: p.color,
+              fillOpacity: 0.85,
+            }}
+          >
+            <PointPopup layerName={layer.name} point={p} />
+          </CircleMarker>
+        ))}
+    </>
+  );
+});
+
+/** The moving "you are here" marker for a playing layer: a translucent halo
+ *  behind a solid accent dot, so it stands out against the sample markers. */
+function Playhead({ marker }: { marker: PlayheadMarker }) {
+  return (
+    <Fragment>
+      <CircleMarker
+        center={[marker.lat, marker.lon]}
+        radius={15}
+        pathOptions={{
+          stroke: false,
+          fillColor: marker.accent,
+          fillOpacity: 0.22,
+          interactive: false,
+          className: "playhead-halo",
+        }}
+      />
+      <CircleMarker
+        center={[marker.lat, marker.lon]}
+        radius={7}
+        pathOptions={{
+          color: "#ffffff",
+          weight: 3,
+          fillColor: marker.accent,
+          fillOpacity: 1,
+        }}
+      >
+        <Popup>
+          <div className="popup">
+            <strong>{marker.name} · playing</strong>
+          </div>
+        </Popup>
+      </CircleMarker>
+    </Fragment>
+  );
+}
+
+export default function MapView({ layers, playheads }: MapViewProps) {
   return (
     <div className="mapwrap">
       <MapContainer
@@ -192,47 +284,12 @@ export default function MapView({ layers }: MapViewProps) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           maxZoom={19}
         />
-        {layers.map((layer) => {
-          const mode = layer.render ?? "circles";
-          const showCircles = mode === "circles" || mode === "both";
-          const showStreak = mode === "streak" || mode === "both";
-          return (
-            <Fragment key={layer.id}>
-              {layer.polyline && layer.polyline.length > 1 && (
-                <Polyline
-                  positions={layer.polyline}
-                  pathOptions={{ color: layer.accent, weight: 2, opacity: 0.7 }}
-                />
-              )}
-              {showStreak &&
-                streakSegments(layer.points).map((seg, i) => (
-                  <Polyline
-                    key={`${layer.id}:streak:${i}`}
-                    positions={seg.positions}
-                    pathOptions={{ color: seg.from.color, weight: 5, opacity: 0.9 }}
-                  >
-                    <PointPopup layerName={layer.name} point={seg.from} />
-                  </Polyline>
-                ))}
-              {showCircles &&
-                layer.points.map((p) => (
-                  <CircleMarker
-                    key={`${layer.id}:${p.id}`}
-                    center={[p.lat, p.lon]}
-                    radius={6}
-                    pathOptions={{
-                      color: layer.accent,
-                      weight: 1.5,
-                      fillColor: p.color,
-                      fillOpacity: 0.85,
-                    }}
-                  >
-                    <PointPopup layerName={layer.name} point={p} />
-                  </CircleMarker>
-                ))}
-            </Fragment>
-          );
-        })}
+        {layers.map((layer) => (
+          <LayerGraphics key={layer.id} layer={layer} />
+        ))}
+        {playheads?.map((ph) => (
+          <Playhead key={`playhead:${ph.id}`} marker={ph} />
+        ))}
         <FitBounds layers={layers} />
       </MapContainer>
       <LegendStack layers={layers} />
