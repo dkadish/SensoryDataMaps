@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect } from "react";
+import { Fragment, memo, useEffect, useMemo } from "react";
 import {
   CircleMarker,
   MapContainer,
@@ -8,6 +8,8 @@ import {
   useMap,
 } from "react-leaflet";
 import { LatLngBounds } from "leaflet";
+import { categoricalColor } from "../lib/color";
+import RadarChart, { type RadarAxis, type RadarSeries } from "./RadarChart";
 
 export interface MapPoint {
   id: string | number;
@@ -20,6 +22,15 @@ export interface MapPoint {
    *  order points into a continuous streak. When absent for any point, the array
    *  order is used instead. */
   order?: number;
+  /** Raw per-channel values for this sample, keyed by channel name. Present on
+   *  olfactory samples; drives the fingerprint radar overlay when the point is
+   *  selected. Points without it are not selectable. */
+  fingerprint?: Record<string, number>;
+}
+
+/** A stable key identifying a selected point across layers. */
+export function pointKey(layerId: string, id: string | number): string {
+  return `${layerId}::${id}`;
 }
 
 /** A scale guide for how points are coloured. */
@@ -44,6 +55,9 @@ export interface MapLayer {
   legend?: MapLegend;
   /** Marker style; defaults to `circles`. */
   render?: RenderMode;
+  /** Radar axes (channels + dataset-wide ranges) for this layer's fingerprints.
+   *  Present on olfactory layers; enables the fingerprint overlay for its points. */
+  fingerprintAxes?: RadarAxis[];
 }
 
 /** The live GPS position of an acoustic layer during audio playback. */
@@ -59,6 +73,12 @@ interface MapViewProps {
   layers: MapLayer[];
   /** Live playback positions, one per playing layer, drawn on top of everything. */
   playheads?: PlayheadMarker[];
+  /** Keys (see `pointKey`) of points whose fingerprints are shown in the overlay. */
+  selectedKeys?: string[];
+  /** Toggle a point's membership in the fingerprint selection. */
+  onToggleSelect?: (key: string) => void;
+  /** Empty the fingerprint selection. */
+  onClearSelection?: () => void;
 }
 
 /** Compact number formatting for legend ticks across very different ranges. */
@@ -98,12 +118,27 @@ function FitBounds({ layers }: { layers: MapLayer[] }) {
 
 /** The details popup for a single sample, shared by circle markers and streak
  *  segments so a sample's readings are reachable in every render mode. */
-function PointPopup({ layerName, point }: { layerName: string; point: MapPoint }) {
+function PointPopup({
+  layerName,
+  point,
+  selected,
+}: {
+  layerName: string;
+  point: MapPoint;
+  selected?: boolean;
+}) {
   if (!point.label && !point.rows) return null;
   return (
     <Popup>
       <div className="popup">
         <strong>{point.label ? `${layerName} · ${point.label}` : layerName}</strong>
+        {point.fingerprint && (
+          <p className="popup-hint">
+            {selected
+              ? "In fingerprint view — click again to remove."
+              : "Click the marker to add its fingerprint to the radar view."}
+          </p>
+        )}
         {point.rows && (
           <table>
             <tbody>
@@ -192,10 +227,20 @@ function LegendStack({ layers }: { layers: MapLayer[] }) {
 /** All of a single layer's drawn geometry: its track line, streak and/or
  *  circle markers. Memoised so frequent playhead updates — which re-render
  *  MapView — don't churn every layer's markers, only the playhead itself. */
-const LayerGraphics = memo(function LayerGraphics({ layer }: { layer: MapLayer }) {
+const LayerGraphics = memo(function LayerGraphics({
+  layer,
+  selectedColors,
+  onToggleSelect,
+}: {
+  layer: MapLayer;
+  /** key -> highlight colour for this layer's currently-selected points. */
+  selectedColors: Map<string, string>;
+  onToggleSelect?: (key: string) => void;
+}) {
   const mode = layer.render ?? "circles";
   const showCircles = mode === "circles" || mode === "both";
   const showStreak = mode === "streak" || mode === "both";
+  const selectable = !!(layer.fingerprintAxes && layer.fingerprintAxes.length > 0);
   return (
     <>
       {layer.polyline && layer.polyline.length > 1 && (
@@ -215,21 +260,30 @@ const LayerGraphics = memo(function LayerGraphics({ layer }: { layer: MapLayer }
           </Polyline>
         ))}
       {showCircles &&
-        layer.points.map((p) => (
-          <CircleMarker
-            key={`${layer.id}:${p.id}`}
-            center={[p.lat, p.lon]}
-            radius={6}
-            pathOptions={{
-              color: layer.accent,
-              weight: 1.5,
-              fillColor: p.color,
-              fillOpacity: 0.85,
-            }}
-          >
-            <PointPopup layerName={layer.name} point={p} />
-          </CircleMarker>
-        ))}
+        layer.points.map((p) => {
+          const canSelect = selectable && !!p.fingerprint;
+          const sel = canSelect ? selectedColors.get(pointKey(layer.id, p.id)) : undefined;
+          return (
+            <CircleMarker
+              key={`${layer.id}:${p.id}`}
+              center={[p.lat, p.lon]}
+              radius={sel ? 9 : 6}
+              pathOptions={{
+                color: sel ?? layer.accent,
+                weight: sel ? 3.5 : 1.5,
+                fillColor: p.color,
+                fillOpacity: 0.85,
+              }}
+              eventHandlers={
+                canSelect && onToggleSelect
+                  ? { click: () => onToggleSelect(pointKey(layer.id, p.id)) }
+                  : undefined
+              }
+            >
+              <PointPopup layerName={layer.name} point={p} selected={!!sel} />
+            </CircleMarker>
+          );
+        })}
     </>
   );
 });
@@ -270,7 +324,114 @@ function Playhead({ marker }: { marker: PlayheadMarker }) {
   );
 }
 
-export default function MapView({ layers, playheads }: MapViewProps) {
+/** Resolve selected point keys against the visible layers into radar series and
+ *  a combined, de-duplicated axis set. A key that no longer resolves (its layer
+ *  was hidden or removed) is skipped. Series colours are assigned by selection
+ *  order so each selected marker and its polygon share a colour. */
+function resolveSelection(
+  layers: MapLayer[],
+  selectedKeys: string[],
+): { series: RadarSeries[]; axes: RadarAxis[]; colorByKey: Map<string, string> } {
+  const byId = new Map(layers.map((l) => [l.id, l]));
+  const series: RadarSeries[] = [];
+  const colorByKey = new Map<string, string>();
+  const axisMap = new Map<string, RadarAxis>();
+
+  for (const key of selectedKeys) {
+    const sep = key.indexOf("::");
+    if (sep < 0) continue;
+    const layerId = key.slice(0, sep);
+    const rest = key.slice(sep + 2);
+    const layer = byId.get(layerId);
+    if (!layer || !layer.fingerprintAxes) continue;
+    const point = layer.points.find((p) => String(p.id) === rest);
+    if (!point || !point.fingerprint) continue;
+
+    const color = categoricalColor(series.length);
+    colorByKey.set(key, color);
+    series.push({
+      id: key,
+      label: point.label ? `${layer.name} · ${point.label}` : layer.name,
+      color,
+      values: point.fingerprint,
+    });
+
+    for (const ax of layer.fingerprintAxes) {
+      const prev = axisMap.get(ax.key);
+      if (prev) {
+        // Same channel across layers: widen the range to cover both.
+        axisMap.set(ax.key, {
+          ...prev,
+          min: Math.min(prev.min, ax.min),
+          max: Math.max(prev.max, ax.max),
+        });
+      } else {
+        axisMap.set(ax.key, { ...ax });
+      }
+    }
+  }
+
+  return { series, axes: [...axisMap.values()], colorByKey };
+}
+
+/** The floating fingerprint overlay: an overlaid radar chart of every selected
+ *  sample's fingerprint, a colour legend with per-sample removal, and a control
+ *  to clear the whole selection. */
+function FingerprintPanel({
+  series,
+  axes,
+  onRemove,
+  onClear,
+}: {
+  series: RadarSeries[];
+  axes: RadarAxis[];
+  onRemove: (key: string) => void;
+  onClear: () => void;
+}) {
+  if (series.length === 0) return null;
+  return (
+    <div className="fingerprint-panel">
+      <div className="fingerprint-head">
+        <span className="fingerprint-title">
+          Fingerprints ({series.length})
+        </span>
+        <button type="button" className="fingerprint-clear" onClick={onClear}>
+          Clear
+        </button>
+      </div>
+      <RadarChart axes={axes} series={series} />
+      <ul className="fingerprint-legend">
+        {series.map((s) => (
+          <li key={s.id}>
+            <span className="swatch" style={{ background: s.color }} />
+            <span className="fingerprint-legend-label">{s.label}</span>
+            <button
+              type="button"
+              className="fingerprint-remove"
+              aria-label={`Remove ${s.label}`}
+              title="Remove"
+              onClick={() => onRemove(s.id)}
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default function MapView({
+  layers,
+  playheads,
+  selectedKeys,
+  onToggleSelect,
+  onClearSelection,
+}: MapViewProps) {
+  const { series, axes, colorByKey } = useMemo(
+    () => resolveSelection(layers, selectedKeys ?? []),
+    [layers, selectedKeys],
+  );
   return (
     <div className="mapwrap">
       <MapContainer
@@ -285,7 +446,12 @@ export default function MapView({ layers, playheads }: MapViewProps) {
           maxZoom={19}
         />
         {layers.map((layer) => (
-          <LayerGraphics key={layer.id} layer={layer} />
+          <LayerGraphics
+            key={layer.id}
+            layer={layer}
+            selectedColors={colorByKey}
+            onToggleSelect={onToggleSelect}
+          />
         ))}
         {playheads?.map((ph) => (
           <Playhead key={`playhead:${ph.id}`} marker={ph} />
@@ -293,6 +459,12 @@ export default function MapView({ layers, playheads }: MapViewProps) {
         <FitBounds layers={layers} />
       </MapContainer>
       <LegendStack layers={layers} />
+      <FingerprintPanel
+        series={series}
+        axes={axes}
+        onRemove={(key) => onToggleSelect?.(key)}
+        onClear={() => onClearSelection?.()}
+      />
     </div>
   );
 }

@@ -620,6 +620,100 @@ input[type="range"] {
 .popup-key {
   color: var(--muted);
 }
+.popup-hint {
+  margin: 4px 0 2px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* Floating fingerprint radar overlay, top-right of the map. */
+.fingerprint-panel {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 810;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  width: 280px;
+  max-width: calc(100% - 20px);
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+}
+.fingerprint-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.fingerprint-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.fingerprint-clear {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.fingerprint-clear:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.radar {
+  display: block;
+  margin: 0 auto;
+}
+.radar-ring {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.radar-spoke {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.radar-axis-label {
+  fill: var(--muted);
+  font-size: 0.62rem;
+}
+.fingerprint-legend {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.fingerprint-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+}
+.fingerprint-legend-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fingerprint-remove {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+.fingerprint-remove:hover {
+  color: var(--error);
+}
 
 @media (max-width: 760px) {
   .app {
