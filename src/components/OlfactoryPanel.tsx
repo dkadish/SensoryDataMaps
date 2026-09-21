@@ -10,6 +10,7 @@ import { categoricalColor, sequentialColor, sequentialSwatches } from "../lib/co
 import { extent } from "../lib/stats";
 import { sampleValue } from "../olfactory/values";
 import type { MapLegend, MapPoint } from "./MapView";
+import type { RadarAxis } from "./RadarChart";
 import Dendrogram from "./Dendrogram";
 import HelpCallout from "./HelpCallout";
 
@@ -21,6 +22,7 @@ interface Props {
     points: MapPoint[],
     polyline?: [number, number][],
     legend?: MapLegend,
+    fingerprintAxes?: RadarAxis[],
   ) => void;
 }
 
@@ -65,6 +67,24 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
     [built, k],
   );
 
+  // The fingerprint radar axes: every gas channel, each normalised over its
+  // dataset-wide range so overlaid sample plots are directly comparable. Built
+  // from all channels (not just the clustering selection) so the radar always
+  // shows the full sensor fingerprint.
+  const fingerprintAxes = useMemo<RadarAxis[]>(
+    () =>
+      allChannels.map((c) => {
+        const [min, max] = extent(dataset.samples.map((s) => s.features[c]));
+        return {
+          key: c,
+          label: c,
+          min: Number.isFinite(min) ? min : 0,
+          max: Number.isFinite(max) ? max : 1,
+        };
+      }),
+    [dataset, allChannels],
+  );
+
   // Build map points + track polyline and hand them up to the app.
   useEffect(() => {
     const samples = dataset.samples;
@@ -98,7 +118,22 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
           rows.push(["Air quality", `${e.gasResistanceOhm.toFixed(0)} Ω`]);
       }
       if (s.accuracyM != null) rows.push(["GPS ±", `${s.accuracyM.toFixed(1)} m`]);
-      return { id: i, lat: s.lat, lon: s.lon, color, label: `Sample ${i + 1}`, rows, order: s.timestamp };
+      // The fingerprint: raw gas-channel values, keyed to match the radar axes.
+      const fingerprint: Record<string, number> = {};
+      for (const c of allChannels) {
+        const v = s.features[c];
+        if (Number.isFinite(v)) fingerprint[c] = v;
+      }
+      return {
+        id: i,
+        lat: s.lat,
+        lon: s.lon,
+        color,
+        label: `Sample ${i + 1}`,
+        rows,
+        order: s.timestamp,
+        fingerprint,
+      };
     });
 
     // Draw the walk path if timestamps let us order the samples.
@@ -122,8 +157,8 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
           }
         : undefined;
 
-    onLayerData(layerId, points, polyline, legend);
-  }, [layerId, dataset, assignments, selected, colorMode, envChannels, onLayerData]);
+    onLayerData(layerId, points, polyline, legend, fingerprintAxes);
+  }, [layerId, dataset, assignments, selected, colorMode, envChannels, fingerprintAxes, allChannels, onLayerData]);
 
   const toggleChannel = (c: string) => {
     setSelected((prev) =>
@@ -158,6 +193,12 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
           <li>
             <strong>Colour the map.</strong> Colour points by cluster, or by any
             single channel or environmental value.
+          </li>
+          <li>
+            <strong>Compare fingerprints.</strong> Click a sample on the map to
+            show its channel fingerprint as a radar plot. Click more samples to
+            overlay their fingerprints for comparison; use <em>×</em> or{" "}
+            <em>Clear</em> to remove them.
           </li>
         </ol>
         <p>

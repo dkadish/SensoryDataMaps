@@ -6,6 +6,7 @@ import MapView, {
   type PlayheadMarker,
   type RenderMode,
 } from "./components/MapView";
+import type { RadarAxis } from "./components/RadarChart";
 import OlfactoryPanel from "./components/OlfactoryPanel";
 import AcousticPanel from "./components/AcousticPanel";
 import LayerCard from "./components/LayerCard";
@@ -20,6 +21,7 @@ interface LayerOutput {
   points: MapPoint[];
   polyline?: [number, number][];
   legend?: MapLegend;
+  fingerprintAxes?: RadarAxis[];
 }
 
 interface BaseLayer {
@@ -50,17 +52,34 @@ export default function App() {
   const [layers, setLayers] = useState<Layer[]>([]);
   const [outputs, setOutputs] = useState<Record<string, LayerOutput>>({});
   const [playheads, setPlayheads] = useState<Record<string, { lat: number; lon: number }>>({});
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [addError, setAddError] = useState<string | null>(null);
   const seq = useRef(0);
 
   // Each layer's map output is reported here, keyed by id, and merged into the
   // combined map. A stable identity keeps the panels' effects from re-firing.
   const onLayerData = useCallback(
-    (id: string, points: MapPoint[], polyline?: [number, number][], legend?: MapLegend) => {
-      setOutputs((prev) => ({ ...prev, [id]: { points, polyline, legend } }));
+    (
+      id: string,
+      points: MapPoint[],
+      polyline?: [number, number][],
+      legend?: MapLegend,
+      fingerprintAxes?: RadarAxis[],
+    ) => {
+      setOutputs((prev) => ({ ...prev, [id]: { points, polyline, legend, fingerprintAxes } }));
     },
     [],
   );
+
+  // Toggle a point in the fingerprint selection; clicking a selected point again
+  // removes it. Keeps insertion order so radar series colours stay stable.
+  const toggleSelect = useCallback((key: string) => {
+    setSelectedKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedKeys([]), []);
 
   // Live GPS position of an acoustic layer during playback, keyed by id. A null
   // position removes the layer's playhead marker.
@@ -162,6 +181,11 @@ export default function App() {
       delete next[id];
       return next;
     });
+    // Drop any fingerprint selection that belonged to the removed layer.
+    setSelectedKeys((prev) => {
+      const next = prev.filter((k) => !k.startsWith(`${id}::`));
+      return next.length === prev.length ? prev : next;
+    });
   };
 
   // Combine visible layers' outputs for the map.
@@ -179,6 +203,7 @@ export default function App() {
             points: o?.points ?? [],
             polyline: o?.polyline,
             legend: o?.legend,
+            fingerprintAxes: o?.fingerprintAxes,
           };
         }),
     [layers, outputs],
@@ -332,7 +357,13 @@ export default function App() {
       </aside>
 
       <main className="map-pane">
-        <MapView layers={mapLayers} playheads={playheadMarkers} />
+        <MapView
+          layers={mapLayers}
+          playheads={playheadMarkers}
+          selectedKeys={selectedKeys}
+          onToggleSelect={toggleSelect}
+          onClearSelection={clearSelection}
+        />
         {totalPoints === 0 && (
           <div className="map-hint">
             {layers.length === 0 ? "Add a layer to plot it here." : "Configure a layer to plot it here."}
