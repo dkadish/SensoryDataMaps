@@ -42,6 +42,26 @@ export interface OlfactorySample extends GeoPoint {
   accuracyM?: number;
 }
 
+/** A photo or audio note attached to a fingerprint in a BRIAN zip export. */
+export interface FingerprintMedia {
+  type: "photo" | "audio";
+  /** Object URL for the file inside the zip, when it was included. */
+  url?: string;
+  /** Free text the user entered, or the audio transcript. */
+  text?: string;
+}
+
+/** A user-captured fingerprint from the BRIAN app: one sensor snapshot with a
+ *  title, description, olfactory tags and optional photo/audio. Shown as its
+ *  own marker; not part of the clustering. */
+export interface OlfactoryFingerprint extends OlfactorySample {
+  id: string;
+  title: string;
+  description: string;
+  tags: string[];
+  media: FingerprintMedia[];
+}
+
 export interface OlfactoryDataset {
   kind: "olfactory";
   name: string;
@@ -52,6 +72,8 @@ export interface OlfactoryDataset {
   envChannels: EnvChannel[];
   /** Distinct walk ids found in the file, if any. */
   walkIds: string[];
+  /** User-captured fingerprints (zip exports only; empty for a CSV). */
+  fingerprints: OlfactoryFingerprint[];
 }
 
 /** A single point of a GPX track. */

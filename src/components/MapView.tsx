@@ -9,6 +9,7 @@ import {
 } from "react-leaflet";
 import { LatLngBounds } from "leaflet";
 import { categoricalColor } from "../lib/color";
+import type { FingerprintMedia } from "../types";
 import RadarChart, { type RadarAxis, type RadarSeries } from "./RadarChart";
 
 export interface MapPoint {
@@ -26,6 +27,11 @@ export interface MapPoint {
    *  olfactory samples; drives the fingerprint radar overlay when the point is
    *  selected. Points without it are not selectable. */
   fingerprint?: Record<string, number>;
+  /** A user-captured fingerprint/note rather than a walk sample: drawn as a
+   *  larger ringed marker in every render mode and left out of the streak. */
+  marker?: "fingerprint";
+  /** Photos / audio notes shown in the popup. */
+  media?: FingerprintMedia[];
 }
 
 /** A stable key identifying a selected point across layers. */
@@ -160,6 +166,18 @@ function PointPopup({
             </tbody>
           </table>
         )}
+        {point.media?.map((m, i) => (
+          <div key={i} className="popup-media">
+            {m.url && m.type === "photo" && (
+              <a href={m.url} target="_blank" rel="noreferrer">
+                <img src={m.url} alt={m.text ?? "Photo"} />
+              </a>
+            )}
+            {m.url && m.type === "audio" && <audio controls src={m.url} />}
+            {!m.url && <span className="muted small">{m.type === "audio" ? "Audio" : "Photo"} (file not in export)</span>}
+            {m.text && <p className="small">{m.text}</p>}
+          </div>
+        ))}
       </div>
     </Popup>
   );
@@ -171,6 +189,7 @@ function PointPopup({
 function streakSegments(
   points: MapPoint[],
 ): { from: MapPoint; positions: [[number, number], [number, number]] }[] {
+  points = points.filter((p) => p.marker !== "fingerprint");
   const ordered = points.every((p) => Number.isFinite(p.order))
     ? [...points].sort((a, b) => (a.order as number) - (b.order as number))
     : points;
@@ -269,18 +288,19 @@ const LayerGraphics = memo(function LayerGraphics({
             <PointPopup layerName={layer.name} point={seg.from} />
           </Polyline>
         ))}
-      {showCircles &&
-        layer.points.map((p) => {
+      {layer.points.map((p) => {
+          const isFingerprint = p.marker === "fingerprint";
+          if (!showCircles && !isFingerprint) return null;
           const canSelect = selectable && !!p.fingerprint;
           const sel = canSelect ? selectedColors.get(pointKey(layer.id, p.id)) : undefined;
           return (
             <CircleMarker
               key={`${layer.id}:${p.id}`}
               center={[p.lat, p.lon]}
-              radius={sel ? 9 : 6}
+              radius={(sel ? 9 : 6) + (isFingerprint ? 3 : 0)}
               pathOptions={{
-                color: sel ?? layer.accent,
-                weight: sel ? 3.5 : 1.5,
+                color: sel ?? (isFingerprint ? "#222" : layer.accent),
+                weight: sel || isFingerprint ? 3.5 : 1.5,
                 fillColor: p.color,
                 fillOpacity: 0.85,
               }}

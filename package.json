@@ -12,6 +12,7 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "leaflet": "^1.9.4",
     "meyda": "^5.6.3",
     "ml-hclust": "^3.1.0",

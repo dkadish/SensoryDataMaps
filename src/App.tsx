@@ -13,7 +13,8 @@ import AcousticPanel from "./components/AcousticPanel";
 import LayerCard from "./components/LayerCard";
 import HelpCallout from "./components/HelpCallout";
 import { parseBrianCsv } from "./olfactory/parseBrianCsv";
-import { readTextFile } from "./lib/readFile";
+import { isZip, parseBrianZip } from "./olfactory/parseBrianZip";
+import { readArrayBuffer, readTextFile } from "./lib/readFile";
 import { categoricalColor } from "./lib/color";
 import type { OlfactoryDataset } from "./types";
 
@@ -104,11 +105,14 @@ export default function App() {
     return { id: `layer-${n}`, accent: categoricalColor(n) };
   };
 
-  const handleAddCsv = async (file: File) => {
+  const handleAddOlfactory = async (file: File) => {
     setAddError(null);
     try {
-      const text = await readTextFile(file);
-      const result = parseBrianCsv(text, file.name);
+      // A BRIAN zip export (samples + fingerprints + media) or a plain CSV.
+      const bytes = new Uint8Array(await readArrayBuffer(file));
+      const result = isZip(bytes)
+        ? parseBrianZip(bytes, file.name)
+        : parseBrianCsv(new TextDecoder().decode(bytes), file.name);
       const bits = [`Loaded ${result.dataset.samples.length} samples`];
       if (result.droppedRows) bits.push(`${result.droppedRows} rows dropped (no lat/lon)`);
       if (result.warnings.length) bits.push(...result.warnings);
@@ -274,12 +278,12 @@ export default function App() {
 
         <section className="upload">
           <label className="filebtn">
-            + Add olfactory layer (BRIAN CSV)
+            + Add olfactory layer (BRIAN CSV or zip)
             <input
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,text/csv,.zip,application/zip"
               onChange={(e) => {
-                if (e.target.files?.[0]) handleAddCsv(e.target.files[0]);
+                if (e.target.files?.[0]) handleAddOlfactory(e.target.files[0]);
                 e.target.value = "";
               }}
             />
