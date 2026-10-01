@@ -14,12 +14,15 @@ interface Props {
   visible: boolean;
   /** How this layer draws its samples on the map. */
   renderMode: RenderMode;
+  /** Stroke width (px) of the streak / track line. */
+  traceWidth: number;
   /** Number of points this layer currently draws on the map. */
   pointCount: number;
   onToggleVisible: () => void;
   onRemove: () => void;
   onRename: (name: string) => void;
   onRenderModeChange: (mode: RenderMode) => void;
+  onTraceWidthChange: (width: number) => void;
   children: ReactNode;
 }
 
@@ -32,11 +35,13 @@ export default function LayerCard({
   accent,
   visible,
   renderMode,
+  traceWidth,
   pointCount,
   onToggleVisible,
   onRemove,
   onRename,
   onRenderModeChange,
+  onTraceWidthChange,
   children,
 }: Props) {
   const [open, setOpen] = useState(true);
@@ -132,6 +137,19 @@ export default function LayerCard({
           ))}
         </div>
       </div>
+      <label className="layer-render" title="Thickness of the streak and track line">
+        <span className="muted small">Trace</span>
+        <input
+          type="range"
+          min={1}
+          max={20}
+          step={1}
+          value={traceWidth}
+          aria-label="Trace width"
+          onChange={(e) => onTraceWidthChange(Number(e.target.value))}
+        />
+        <span className="muted small trace-width-value">{traceWidth}px</span>
+      </label>
       {open && <div className="layer-content">{children}</div>}
     </div>
   );

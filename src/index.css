@@ -218,6 +218,14 @@ body,
   background: var(--accent);
   color: #fff;
 }
+.layer-render input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+.trace-width-value {
+  min-width: 3.2em;
+  text-align: right;
+}
 .layer-content {
   padding: 4px 10px 12px;
   border-top: 1px solid var(--border);
