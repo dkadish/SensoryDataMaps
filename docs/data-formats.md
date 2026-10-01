@@ -1,6 +1,7 @@
 # Data formats
 
-Sensory Data Maps ingests three kinds of file. The olfactory CSV section below
+Sensory Data Maps ingests olfactory CSVs and zip exports from the BRIAN app,
+GPX tracks and audio files. The olfactory CSV section below
 describes the **actual smell-walk app export** (an example ships in
 `sample-data/smellwalk-2026-09-11.csv`); the parser is deliberately tolerant so
 it also accepts related layouts and future columns (more sensors, environmental
@@ -48,7 +49,7 @@ current export these are the gas sensors (values in **volts**):
 
 `ch4`, `nh3`, `hcho`, `voc`, `odour`, `h2s`, `etoh`, `no2`
 
-Future exports may add more (up to 11): e.g. `co`, `smoke`, `h2`. They need no
+Newer exports (incl. the zip, section 1b) add `co`, `smoke` and `h2`. They need no
 code change — they'll simply appear as extra selectable channels. Channel names
 are used verbatim, so `odour`/`Odor` etc. are whatever the header says.
 
@@ -69,6 +70,88 @@ are used verbatim, so `odour`/`Odor` etc. are whatever the header says.
   clustering/colouring inputs — listed as dashed chips under the gas channels,
   off by default; tick them to include them (they're z-scored alongside the gas
   channels so units don't dominate).
+
+### Partial rows → snapshots
+
+The BRIAN firmware notifies each channel in turn and then waits 5 s, and the app
+stores readings as they arrive, so one burst can be split over consecutive rows
+(e.g. a row with 15 channels followed by a row with only `etoh`). On load,
+**consecutive rows are merged into one snapshot** while:
+
+- they belong to the same `walk_id`,
+- no channel appears in both (a repeated channel starts a new snapshot), and
+- the snapshot spans at most 8 s (`SNAPSHOT_MAX_SPAN_MS`).
+
+The merged sample takes its position, time and GPS accuracy from the row that
+contributed the most readings. A complete row always clashes with its
+neighbour, so dense exports (like the 2026-09-11 sample) are unchanged. The
+layer info line says how many rows were combined.
+
+Empty cells and JSON `null`s are **missing**, never zero.
+
+---
+
+## 1b. BRIAN zip export
+
+The BRIAN app (BrianReactNative, *export walk* → `exportSmellWalkZip`) writes one
+zip per walk, e.g. `smellwalk_walk-1790854947652_2026-10-01T12-11-00-241Z.zip`.
+Load it with **+ Add olfactory layer** — the file is recognised as a zip by its
+content, not its name.
+
+```
+samples.csv          the walk's rows (same layout as the CSV export, section 1)
+walk_samples.json    the same rows as app sensor records (exact ms + device id)
+fingerprints.json    user-captured fingerprints (sensor records)
+captures.json        photo / audio notes
+annotations.json     drawings and tags on captures
+media/<type>_<captureId>.<jpg|m4a>
+```
+
+The files may sit at the zip root or inside one folder.
+
+**Walk samples.** `walk_samples.json` is used when present (falls back to
+`samples.csv`). Each record is an app sensor record:
+
+```json
+{
+  "id": "walk-1790854947652-1790854952815",
+  "title": "walk-1790854947652",
+  "description": "34:98:7A:4C:AC:3E",
+  "walkId": "walk-1790854947652",
+  "recordType": "walk_sample",
+  "recordedAt": 1790854952815,
+  "latitude": 55.5956561, "longitude": 13.0241686, "accuracyM": 3.44,
+  "ch4": 0.626, "nh3": 1.556, "hcho": 0.056, "voc": 4.094, "odour": 3.244,
+  "h2s": 0.318, "etoh": 0.088, "no2": 1.462, "co": 0.05, "smoke": 0.056, "h2": 0.148,
+  "temperature": 25.29, "pressure": 1025.22, "humidity": 45.0, "altitude": -99.3,
+  "bme680GasResistance": 24754,
+  "deltaCh4": null, "syncStatus": "pending", "influxStatus": "pending", "…": "…"
+}
+```
+
+Keys go through the same column matching as the CSV (camelCase works because
+case and underscores are ignored). For walk rows the app stores the walk id in
+`title` and the **BLE device id** in `description`; the device id is shown in
+the layer info. `id`, `title`, `description`, `recordType`, `tagsJson`,
+`photoPath` and `delta*` / `sync*` / `influx*` bookkeeping fields are ignored.
+`bme680GasResistance` (`bme680_gas_resistance` in the CSV) is the BME680 gas
+resistance (Ω, "air quality").
+
+**Fingerprints.** Each `fingerprints.json` record has the same shape with
+`recordType: "fingerprint"`, a user `title` and `description`, and `tagsJson`
+(a JSON-encoded string array). Fingerprints are drawn as larger ringed markers
+(in every map style), are **not** clustered, and are coloured by value when the
+layer is coloured by a channel. Clicking one adds its readings to the radar
+view.
+
+**Captures and media.** A `captures.json` entry (`type` `photo`/`audio`) whose
+`sensorRecordId` is a fingerprint's `id` is attached to that fingerprint; its
+file is `media/<type>_<id>.jpg|m4a`. Its `description` (or the transcript in
+`transcriptJson.phrases[].text`) and `selectedTagsJson` are shown, plus the tags
+of any `annotations.json` entry with that `captureId`. Captures not attached to a
+fingerprint but with `latitudeRaw`/`longitudeRaw` become "Photo note"/"Audio
+note" markers. Records without GPS are skipped (and counted in the info line).
+Media are shown from memory only; nothing is uploaded.
 
 ---
 

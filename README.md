@@ -32,8 +32,14 @@ built to deploy as a static site to GitHub Pages, Netlify, or any static host.
   fine-tuning afterwards.
 
 ### Olfactory
-- Load a **BRIAN CSV** export (gas-sensor voltages + GPS; see
-  [`docs/data-formats.md`](docs/data-formats.md)).
+- Load a **BRIAN CSV** export (gas-sensor voltages + GPS), or the BRIAN app's
+  per-walk **zip export** (all 11 gas channels + environmental data, plus
+  fingerprints with their title, description, tags, photos and audio notes);
+  see [`docs/data-formats.md`](docs/data-formats.md).
+- Partial rows (the app stores sensor readings as they arrive, so one reading
+  burst can be split across rows) are **combined into whole snapshots**.
+- **Fingerprints** from a zip appear as larger ringed markers; their popup shows
+  the photo, an audio player and the tags.
 - **Hierarchical clustering** (Ward / complete / average / single linkage) over
   a selectable set of sensor channels, cut into *k* clusters with a slider.
 - **Dendrogram** view, coloured to match the map.

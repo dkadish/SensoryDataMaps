@@ -9,6 +9,7 @@ import {
 } from "react-leaflet";
 import { LatLngBounds } from "leaflet";
 import { categoricalColor } from "../lib/color";
+import type { FingerprintMedia } from "../types";
 import RadarChart, { type RadarAxis, type RadarSeries } from "./RadarChart";
 
 export interface MapPoint {
@@ -26,6 +27,11 @@ export interface MapPoint {
    *  olfactory samples; drives the fingerprint radar overlay when the point is
    *  selected. Points without it are not selectable. */
   fingerprint?: Record<string, number>;
+  /** A user-captured fingerprint/note rather than a walk sample: drawn as a
+   *  larger ringed marker in every render mode and left out of the streak. */
+  marker?: "fingerprint";
+  /** Photos / audio notes shown in the popup. */
+  media?: FingerprintMedia[];
 }
 
 /** A stable key identifying a selected point across layers. */
@@ -43,6 +49,12 @@ export type MapLegend =
  *  along the walk (same per-sample colours as the circles); `both` overlays them. */
 export type RenderMode = "circles" | "streak" | "both";
 
+/** Default stroke width (px) of a layer's colour-changing streak. */
+export const DEFAULT_TRACE_WIDTH = 5;
+/** Default stroke width (px) of a layer's plain track line; scales with the
+ *  trace width so both thicken together. */
+const TRACK_WIDTH_RATIO = 2 / DEFAULT_TRACE_WIDTH;
+
 /** One data layer to draw on the map: its points, an optional track polyline and
  *  a colour-scale legend. `accent` is the layer's identity colour, used for the
  *  track line and the marker outline so overlapping layers stay distinguishable. */
@@ -55,6 +67,9 @@ export interface MapLayer {
   legend?: MapLegend;
   /** Marker style; defaults to `circles`. */
   render?: RenderMode;
+  /** Stroke width (px) of the streak; the track line scales with it. Defaults
+   *  to `DEFAULT_TRACE_WIDTH`. */
+  traceWidth?: number;
   /** Radar axes (channels + dataset-wide ranges) for this layer's fingerprints.
    *  Present on olfactory layers; enables the fingerprint overlay for its points. */
   fingerprintAxes?: RadarAxis[];
@@ -151,6 +166,18 @@ function PointPopup({
             </tbody>
           </table>
         )}
+        {point.media?.map((m, i) => (
+          <div key={i} className="popup-media">
+            {m.url && m.type === "photo" && (
+              <a href={m.url} target="_blank" rel="noreferrer">
+                <img src={m.url} alt={m.text ?? "Photo"} />
+              </a>
+            )}
+            {m.url && m.type === "audio" && <audio controls src={m.url} />}
+            {!m.url && <span className="muted small">{m.type === "audio" ? "Audio" : "Photo"} (file not in export)</span>}
+            {m.text && <p className="small">{m.text}</p>}
+          </div>
+        ))}
       </div>
     </Popup>
   );
@@ -162,6 +189,7 @@ function PointPopup({
 function streakSegments(
   points: MapPoint[],
 ): { from: MapPoint; positions: [[number, number], [number, number]] }[] {
+  points = points.filter((p) => p.marker !== "fingerprint");
   const ordered = points.every((p) => Number.isFinite(p.order))
     ? [...points].sort((a, b) => (a.order as number) - (b.order as number))
     : points;
@@ -240,13 +268,14 @@ const LayerGraphics = memo(function LayerGraphics({
   const mode = layer.render ?? "circles";
   const showCircles = mode === "circles" || mode === "both";
   const showStreak = mode === "streak" || mode === "both";
+  const traceWidth = layer.traceWidth ?? DEFAULT_TRACE_WIDTH;
   const selectable = !!(layer.fingerprintAxes && layer.fingerprintAxes.length > 0);
   return (
     <>
       {layer.polyline && layer.polyline.length > 1 && (
         <Polyline
           positions={layer.polyline}
-          pathOptions={{ color: layer.accent, weight: 2, opacity: 0.7 }}
+          pathOptions={{ color: layer.accent, weight: traceWidth * TRACK_WIDTH_RATIO, opacity: 0.7 }}
         />
       )}
       {showStreak &&
@@ -254,23 +283,24 @@ const LayerGraphics = memo(function LayerGraphics({
           <Polyline
             key={`${layer.id}:streak:${i}`}
             positions={seg.positions}
-            pathOptions={{ color: seg.from.color, weight: 5, opacity: 0.9 }}
+            pathOptions={{ color: seg.from.color, weight: traceWidth, opacity: 0.9 }}
           >
             <PointPopup layerName={layer.name} point={seg.from} />
           </Polyline>
         ))}
-      {showCircles &&
-        layer.points.map((p) => {
+      {layer.points.map((p) => {
+          const isFingerprint = p.marker === "fingerprint";
+          if (!showCircles && !isFingerprint) return null;
           const canSelect = selectable && !!p.fingerprint;
           const sel = canSelect ? selectedColors.get(pointKey(layer.id, p.id)) : undefined;
           return (
             <CircleMarker
               key={`${layer.id}:${p.id}`}
               center={[p.lat, p.lon]}
-              radius={sel ? 9 : 6}
+              radius={(sel ? 9 : 6) + (isFingerprint ? 3 : 0)}
               pathOptions={{
-                color: sel ?? layer.accent,
-                weight: sel ? 3.5 : 1.5,
+                color: sel ?? (isFingerprint ? "#222" : layer.accent),
+                weight: sel || isFingerprint ? 3.5 : 1.5,
                 fillColor: p.color,
                 fillOpacity: 0.85,
               }}

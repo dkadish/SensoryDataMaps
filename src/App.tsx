@@ -5,6 +5,7 @@ import MapView, {
   type MapPoint,
   type PlayheadMarker,
   type RenderMode,
+  DEFAULT_TRACE_WIDTH,
 } from "./components/MapView";
 import type { RadarAxis } from "./components/RadarChart";
 import OlfactoryPanel, {
@@ -22,7 +23,8 @@ import GroupControls, {
 } from "./components/GroupControls";
 import { meydaProvider } from "./acoustic/meydaProvider";
 import { parseBrianCsv } from "./olfactory/parseBrianCsv";
-import { readTextFile } from "./lib/readFile";
+import { isZip, parseBrianZip } from "./olfactory/parseBrianZip";
+import { readArrayBuffer, readTextFile } from "./lib/readFile";
 import { categoricalColor } from "./lib/color";
 import type { OlfactoryDataset } from "./types";
 
@@ -44,6 +46,8 @@ interface BaseLayer {
   accent: string;
   /** How this layer draws its samples: circles, a colour-changing streak, or both. */
   render: RenderMode;
+  /** Stroke width (px) of the layer's streak / track line on the map. */
+  traceWidth: number;
 }
 
 interface OlfactoryLayer extends BaseLayer {
@@ -118,11 +122,14 @@ export default function App() {
     return { id: `layer-${n}`, accent: categoricalColor(n) };
   };
 
-  const handleAddCsv = async (file: File) => {
+  const handleAddOlfactory = async (file: File) => {
     setAddError(null);
     try {
-      const text = await readTextFile(file);
-      const result = parseBrianCsv(text, file.name);
+      // A BRIAN zip export (samples + fingerprints + media) or a plain CSV.
+      const bytes = new Uint8Array(await readArrayBuffer(file));
+      const result = isZip(bytes)
+        ? parseBrianZip(bytes, file.name)
+        : parseBrianCsv(new TextDecoder().decode(bytes), file.name);
       const bits = [`Loaded ${result.dataset.samples.length} samples`];
       if (result.droppedRows) bits.push(`${result.droppedRows} rows dropped (no lat/lon)`);
       if (result.warnings.length) bits.push(...result.warnings);
@@ -136,6 +143,7 @@ export default function App() {
           visible: true,
           accent,
           render: "circles",
+          traceWidth: DEFAULT_TRACE_WIDTH,
           dataset: result.dataset,
           info: bits.join(" · "),
           settings: defaultOlfactorySettings(result.dataset),
@@ -158,6 +166,7 @@ export default function App() {
         visible: true,
         accent,
         render: "circles",
+        traceWidth: DEFAULT_TRACE_WIDTH,
         audioFile: file,
         gpxText: null,
         metric: meydaProvider.metricNames[0],
@@ -229,6 +238,9 @@ export default function App() {
       prev.map((l) => (l.kind === "acoustic" && isGroupTarget(l, "acoustic") ? { ...l, metric } : l)),
     );
 
+  const setTraceWidth = (id: string, traceWidth: number) =>
+    setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, traceWidth } : l)));
+
   const removeLayer = (id: string) => {
     setLayers((prev) => prev.filter((l) => l.id !== id));
     setGroupExcluded((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev));
@@ -262,6 +274,7 @@ export default function App() {
             name: l.name,
             accent: l.accent,
             render: l.render,
+            traceWidth: l.traceWidth,
             points: o?.points ?? [],
             polyline: o?.polyline,
             legend: o?.legend,
@@ -333,12 +346,12 @@ export default function App() {
 
         <section className="upload">
           <label className="filebtn">
-            + Add olfactory layer (BRIAN CSV)
+            + Add olfactory layer (BRIAN CSV or zip)
             <input
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,text/csv,.zip,application/zip"
               onChange={(e) => {
-                if (e.target.files?.[0]) handleAddCsv(e.target.files[0]);
+                if (e.target.files?.[0]) handleAddOlfactory(e.target.files[0]);
                 e.target.value = "";
               }}
             />
@@ -413,11 +426,13 @@ export default function App() {
               accent={layer.accent}
               visible={layer.visible}
               renderMode={layer.render}
+              traceWidth={layer.traceWidth}
               pointCount={outputs[layer.id]?.points.length ?? 0}
               onToggleVisible={() => toggleVisible(layer.id)}
               onRemove={() => removeLayer(layer.id)}
               onRename={(name) => renameLayer(layer.id, name)}
               onRenderModeChange={(mode) => setRenderMode(layer.id, mode)}
+              onTraceWidthChange={(w) => setTraceWidth(layer.id, w)}
             >
               {layer.kind === "olfactory" ? (
                 <>
