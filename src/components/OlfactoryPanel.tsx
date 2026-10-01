@@ -136,6 +136,35 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
       };
     });
 
+    // User-captured fingerprints / notes: their own ringed markers, coloured by
+    // value when colouring by a channel (they aren't clustered).
+    for (const f of dataset.fingerprints) {
+      const v = colorMode !== CLUSTER_MODE ? sampleValue(f, colorMode) : NaN;
+      const rows: [string, string][] = [["Time", fmtTime(f.timestamp)]];
+      if (f.description) rows.push(["Description", f.description]);
+      if (f.tags.length) rows.push(["Tags", f.tags.join(", ")]);
+      for (const c of allChannels) {
+        const x = f.features[c];
+        if (Number.isFinite(x)) rows.push([c, x.toFixed(3)]);
+      }
+      const fingerprint: Record<string, number> = {};
+      for (const c of allChannels) {
+        if (Number.isFinite(f.features[c])) fingerprint[c] = f.features[c];
+      }
+      points.push({
+        id: `fp-${f.id}`,
+        lat: f.lat,
+        lon: f.lon,
+        color: Number.isFinite(v) ? sequentialColor((v - lo) / span) : "#fff",
+        label: `★ ${f.title}`,
+        rows,
+        order: f.timestamp,
+        fingerprint: Object.keys(fingerprint).length ? fingerprint : undefined,
+        marker: "fingerprint",
+        media: f.media,
+      });
+    }
+
     // Draw the walk path if timestamps let us order the samples.
     const timed = samples
       .map((s, i) => ({ s, i }))
@@ -202,13 +231,20 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
           </li>
         </ol>
         <p>
-          Load a <strong>BRIAN CSV</strong> export; see{" "}
+          Fingerprints and photo/audio notes from a <strong>zip export</strong> appear
+          as larger ringed markers (not part of the clustering); click one to see its
+          description, tags, photo and audio.
+        </p>
+        <p>
+          Load a <strong>BRIAN CSV</strong> or <strong>zip</strong> export; see{" "}
           <code>docs/data-formats.md</code> for the format.
         </p>
       </HelpCallout>
 
       <p className="muted">
         {dataset.samples.length.toLocaleString()} samples · {allChannels.length} channels
+        {dataset.fingerprints.length > 0 &&
+          ` · ${dataset.fingerprints.length} fingerprint${dataset.fingerprints.length === 1 ? "" : "s"}`}
       </p>
 
       <section>

@@ -671,6 +671,22 @@ input[type="range"] {
   color: var(--muted);
   font-size: 0.75rem;
 }
+.popup-media {
+  margin-top: 6px;
+}
+.popup-media img {
+  display: block;
+  max-width: 220px;
+  max-height: 180px;
+  border-radius: 4px;
+}
+.popup-media audio {
+  width: 220px;
+}
+.popup-media p {
+  margin: 2px 0 0;
+  max-width: 220px;
+}
 
 /* Floating fingerprint radar overlay, top-right of the map. */
 .fingerprint-panel {
