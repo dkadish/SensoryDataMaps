@@ -23,6 +23,13 @@ built to deploy as a static site to GitHub Pages, Netlify, or any static host.
   sample), a **Streak** (one continuous line whose colour changes along the
   walk, using the same per-sample colours), or **Both**. Works for both
   olfactory and acoustic layers.
+- **Control many layers at once.** With two or more layers of the same kind, a
+  **Control all olfactory / acoustic layers** card appears. Pick which layers
+  it applies to, then set the map style, visibility, colour channel (e.g. colour
+  every olfactory walk by `voc`) and — for olfactory layers — the linkage, number
+  of clusters and clustering channels for all of them in one go. A channel only
+  changes the layers that record it; each layer's own controls still work for
+  fine-tuning afterwards.
 
 ### Olfactory
 - Load a **BRIAN CSV** export (gas-sensor voltages + GPS; see

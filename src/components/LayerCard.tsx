@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { RenderMode } from "./MapView";
 
-const RENDER_MODES: { value: RenderMode; label: string; title: string }[] = [
+export const RENDER_MODES: { value: RenderMode; label: string; title: string }[] = [
   { value: "circles", label: "Circles", title: "A coloured circle per sample" },
   { value: "streak", label: "Streak", title: "A single line whose colour changes along the walk" },
   { value: "both", label: "Both", title: "Circles over the colour-changing streak" },

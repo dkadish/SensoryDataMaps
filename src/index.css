@@ -769,3 +769,27 @@ input[type="range"] {
     min-height: 45vh;
   }
 }
+
+/* Group controls: change several layers of one kind at once. */
+.group-card {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.group-row > .muted:first-child {
+  min-width: 64px;
+}
+.chip .swatch {
+  width: 9px;
+  height: 9px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.chip.mixed {
+  background: repeating-linear-gradient(135deg, #fff 0 4px, #e5f0f8 4px 8px);
+}
