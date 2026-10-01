@@ -5,6 +5,7 @@ import MapView, {
   type MapPoint,
   type PlayheadMarker,
   type RenderMode,
+  DEFAULT_TRACE_WIDTH,
 } from "./components/MapView";
 import type { RadarAxis } from "./components/RadarChart";
 import OlfactoryPanel from "./components/OlfactoryPanel";
@@ -32,6 +33,8 @@ interface BaseLayer {
   accent: string;
   /** How this layer draws its samples: circles, a colour-changing streak, or both. */
   render: RenderMode;
+  /** Stroke width (px) of the layer's streak / track line on the map. */
+  traceWidth: number;
 }
 
 interface OlfactoryLayer extends BaseLayer {
@@ -119,6 +122,7 @@ export default function App() {
           visible: true,
           accent,
           render: "circles",
+          traceWidth: DEFAULT_TRACE_WIDTH,
           dataset: result.dataset,
           info: bits.join(" · "),
         },
@@ -140,6 +144,7 @@ export default function App() {
         visible: true,
         accent,
         render: "circles",
+        traceWidth: DEFAULT_TRACE_WIDTH,
         audioFile: file,
         gpxText: null,
       },
@@ -167,6 +172,9 @@ export default function App() {
 
   const setRenderMode = (id: string, render: RenderMode) =>
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, render } : l)));
+
+  const setTraceWidth = (id: string, traceWidth: number) =>
+    setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, traceWidth } : l)));
 
   const removeLayer = (id: string) => {
     setLayers((prev) => prev.filter((l) => l.id !== id));
@@ -200,6 +208,7 @@ export default function App() {
             name: l.name,
             accent: l.accent,
             render: l.render,
+            traceWidth: l.traceWidth,
             points: o?.points ?? [],
             polyline: o?.polyline,
             legend: o?.legend,
@@ -309,11 +318,13 @@ export default function App() {
               accent={layer.accent}
               visible={layer.visible}
               renderMode={layer.render}
+              traceWidth={layer.traceWidth}
               pointCount={outputs[layer.id]?.points.length ?? 0}
               onToggleVisible={() => toggleVisible(layer.id)}
               onRemove={() => removeLayer(layer.id)}
               onRename={(name) => renameLayer(layer.id, name)}
               onRenderModeChange={(mode) => setRenderMode(layer.id, mode)}
+              onTraceWidthChange={(w) => setTraceWidth(layer.id, w)}
             >
               {layer.kind === "olfactory" ? (
                 <>

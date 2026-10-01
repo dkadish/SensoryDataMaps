@@ -43,6 +43,12 @@ export type MapLegend =
  *  along the walk (same per-sample colours as the circles); `both` overlays them. */
 export type RenderMode = "circles" | "streak" | "both";
 
+/** Default stroke width (px) of a layer's colour-changing streak. */
+export const DEFAULT_TRACE_WIDTH = 5;
+/** Default stroke width (px) of a layer's plain track line; scales with the
+ *  trace width so both thicken together. */
+const TRACK_WIDTH_RATIO = 2 / DEFAULT_TRACE_WIDTH;
+
 /** One data layer to draw on the map: its points, an optional track polyline and
  *  a colour-scale legend. `accent` is the layer's identity colour, used for the
  *  track line and the marker outline so overlapping layers stay distinguishable. */
@@ -55,6 +61,9 @@ export interface MapLayer {
   legend?: MapLegend;
   /** Marker style; defaults to `circles`. */
   render?: RenderMode;
+  /** Stroke width (px) of the streak; the track line scales with it. Defaults
+   *  to `DEFAULT_TRACE_WIDTH`. */
+  traceWidth?: number;
   /** Radar axes (channels + dataset-wide ranges) for this layer's fingerprints.
    *  Present on olfactory layers; enables the fingerprint overlay for its points. */
   fingerprintAxes?: RadarAxis[];
@@ -240,13 +249,14 @@ const LayerGraphics = memo(function LayerGraphics({
   const mode = layer.render ?? "circles";
   const showCircles = mode === "circles" || mode === "both";
   const showStreak = mode === "streak" || mode === "both";
+  const traceWidth = layer.traceWidth ?? DEFAULT_TRACE_WIDTH;
   const selectable = !!(layer.fingerprintAxes && layer.fingerprintAxes.length > 0);
   return (
     <>
       {layer.polyline && layer.polyline.length > 1 && (
         <Polyline
           positions={layer.polyline}
-          pathOptions={{ color: layer.accent, weight: 2, opacity: 0.7 }}
+          pathOptions={{ color: layer.accent, weight: traceWidth * TRACK_WIDTH_RATIO, opacity: 0.7 }}
         />
       )}
       {showStreak &&
@@ -254,7 +264,7 @@ const LayerGraphics = memo(function LayerGraphics({
           <Polyline
             key={`${layer.id}:streak:${i}`}
             positions={seg.positions}
-            pathOptions={{ color: seg.from.color, weight: 5, opacity: 0.9 }}
+            pathOptions={{ color: seg.from.color, weight: traceWidth, opacity: 0.9 }}
           >
             <PointPopup layerName={layer.name} point={seg.from} />
           </Polyline>
