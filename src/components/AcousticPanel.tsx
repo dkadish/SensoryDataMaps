@@ -17,6 +17,10 @@ interface Props {
   accent: string;
   audioFile: File | null;
   gpxText: { text: string; name: string } | null;
+  /** The metric windows are coloured by. Held by the app so several layers can
+   *  be switched at once from the group controls. */
+  metric: string;
+  onMetricChange: (metric: string) => void;
   onLayerData: (
     layerId: string,
     points: MapPoint[],
@@ -40,6 +44,8 @@ export default function AcousticPanel({
   accent,
   audioFile,
   gpxText,
+  metric,
+  onMetricChange,
   onLayerData,
   onPlayhead,
 }: Props) {
@@ -52,7 +58,6 @@ export default function AcousticPanel({
   const [frameSize, setFrameSize] = useState(DEFAULT_ANALYSIS_OPTIONS.frameSize);
   const [audioStart, setAudioStart] = useState<string>("");
   const [offsetSec, setOffsetSec] = useState(0);
-  const [metric, setMetric] = useState<string>(meydaProvider.metricNames[0]);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -430,7 +435,7 @@ export default function AcousticPanel({
           <h3>Map colour</h3>
           <label className="field">
             Colour windows by
-            <select value={metric} onChange={(e) => setMetric(e.target.value)}>
+            <select value={metric} onChange={(e) => onMetricChange(e.target.value)}>
               {meydaProvider.metricNames.map((m) => (
                 <option key={m} value={m}>
                   {METRIC_LABELS[m] ?? m}

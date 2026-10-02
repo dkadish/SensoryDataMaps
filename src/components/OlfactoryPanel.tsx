@@ -14,9 +14,39 @@ import type { RadarAxis } from "./RadarChart";
 import Dendrogram from "./Dendrogram";
 import HelpCallout from "./HelpCallout";
 
+/** An olfactory layer's analysis + colouring settings. Held by the app (not the
+ *  panel) so several layers can be driven at once from the group controls. */
+export interface OlfactorySettings {
+  /** Channels (gas and/or env keys) feeding the clustering. */
+  selected: string[];
+  method: LinkageMethod;
+  /** Number of clusters to cut the tree into. */
+  k: number;
+  /** `CLUSTER_MODE`, or the gas channel / env key to colour points by. */
+  colorMode: string;
+}
+
+export const CLUSTER_MODE = "__cluster__";
+
+/** Upper bound of the clusters (k) slider for a dataset. */
+export function maxClusters(dataset: OlfactoryDataset): number {
+  return Math.min(12, dataset.samples.length);
+}
+
+export function defaultOlfactorySettings(dataset: OlfactoryDataset): OlfactorySettings {
+  return {
+    selected: dataset.featureChannels,
+    method: "ward",
+    k: Math.min(4, dataset.samples.length),
+    colorMode: CLUSTER_MODE,
+  };
+}
+
 interface Props {
   layerId: string;
   dataset: OlfactoryDataset;
+  settings: OlfactorySettings;
+  onSettingsChange: (patch: Partial<OlfactorySettings>) => void;
   onLayerData: (
     layerId: string,
     points: MapPoint[],
@@ -26,30 +56,24 @@ interface Props {
   ) => void;
 }
 
-const CLUSTER_MODE = "__cluster__";
-
 function fmtTime(t: number): string {
   return Number.isFinite(t) ? new Date(t).toLocaleString() : "—";
 }
 
-export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props) {
+export default function OlfactoryPanel({
+  layerId,
+  dataset,
+  settings,
+  onSettingsChange,
+  onLayerData,
+}: Props) {
   const allChannels = dataset.featureChannels;
   const envChannels = dataset.envChannels;
   // Label lookup for both gas channels and env metrics (for the colour dropdown).
   const labelFor = (key: string) =>
     envChannels.find((e) => e.key === key)?.label ?? key;
-  const [selected, setSelected] = useState<string[]>(allChannels);
-  const [method, setMethod] = useState<LinkageMethod>("ward");
-  const [k, setK] = useState(Math.min(4, dataset.samples.length));
-  const [colorMode, setColorMode] = useState<string>(CLUSTER_MODE);
+  const { selected, method, k, colorMode } = settings;
   const [error, setError] = useState<string | null>(null);
-
-  // Reset controls when a new dataset is loaded.
-  useEffect(() => {
-    setSelected(dataset.featureChannels);
-    setK(Math.min(4, dataset.samples.length));
-    setColorMode(CLUSTER_MODE);
-  }, [dataset]);
 
   const built = useMemo(() => {
     setError(null);
@@ -190,9 +214,9 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
   }, [layerId, dataset, assignments, selected, colorMode, envChannels, fingerprintAxes, allChannels, onLayerData]);
 
   const toggleChannel = (c: string) => {
-    setSelected((prev) =>
-      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c],
-    );
+    onSettingsChange({
+      selected: selected.includes(c) ? selected.filter((x) => x !== c) : [...selected, c],
+    });
   };
 
   const clusterSizes = useMemo(() => {
@@ -292,7 +316,7 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
         <h3>Hierarchical clustering</h3>
         <label className="field">
           Linkage
-          <select value={method} onChange={(e) => setMethod(e.target.value as LinkageMethod)}>
+          <select value={method} onChange={(e) => onSettingsChange({ method: e.target.value as LinkageMethod })}>
             {LINKAGE_METHODS.map((m) => (
               <option key={m} value={m}>
                 {m}
@@ -305,9 +329,9 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
           <input
             type="range"
             min={1}
-            max={Math.min(12, dataset.samples.length)}
+            max={maxClusters(dataset)}
             value={k}
-            onChange={(e) => setK(Number(e.target.value))}
+            onChange={(e) => onSettingsChange({ k: Number(e.target.value) })}
           />
         </label>
         {error && <p className="error">{error}</p>}
@@ -334,7 +358,7 @@ export default function OlfactoryPanel({ layerId, dataset, onLayerData }: Props)
         <h3>Map colour</h3>
         <label className="field">
           Colour points by
-          <select value={colorMode} onChange={(e) => setColorMode(e.target.value)}>
+          <select value={colorMode} onChange={(e) => onSettingsChange({ colorMode: e.target.value })}>
             <option value={CLUSTER_MODE}>Cluster</option>
             {allChannels.map((c) => (
               <option key={c} value={c}>

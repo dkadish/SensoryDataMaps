@@ -8,15 +8,27 @@ import MapView, {
   DEFAULT_TRACE_WIDTH,
 } from "./components/MapView";
 import type { RadarAxis } from "./components/RadarChart";
-import OlfactoryPanel from "./components/OlfactoryPanel";
+import OlfactoryPanel, {
+  defaultOlfactorySettings,
+  type OlfactorySettings,
+} from "./components/OlfactoryPanel";
 import AcousticPanel from "./components/AcousticPanel";
 import LayerCard from "./components/LayerCard";
 import HelpCallout from "./components/HelpCallout";
+import GroupControls, {
+  AcousticGroupControls,
+  OlfactoryGroupControls,
+  common,
+  type ApplyOlfactory,
+} from "./components/GroupControls";
+import { meydaProvider } from "./acoustic/meydaProvider";
 import { parseBrianCsv } from "./olfactory/parseBrianCsv";
 import { isZip, parseBrianZip } from "./olfactory/parseBrianZip";
 import { readArrayBuffer, readTextFile } from "./lib/readFile";
 import { categoricalColor } from "./lib/color";
 import type { OlfactoryDataset } from "./types";
+
+type LayerKind = "olfactory" | "acoustic";
 
 /** The map output a layer's panel produces, keyed by layer id in App state. */
 interface LayerOutput {
@@ -42,12 +54,15 @@ interface OlfactoryLayer extends BaseLayer {
   kind: "olfactory";
   dataset: OlfactoryDataset;
   info: string;
+  settings: OlfactorySettings;
 }
 
 interface AcousticLayer extends BaseLayer {
   kind: "acoustic";
   audioFile: File;
   gpxText: { text: string; name: string } | null;
+  /** The metric windows are coloured by. */
+  metric: string;
 }
 
 type Layer = OlfactoryLayer | AcousticLayer;
@@ -58,6 +73,8 @@ export default function App() {
   const [playheads, setPlayheads] = useState<Record<string, { lat: number; lon: number }>>({});
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [addError, setAddError] = useState<string | null>(null);
+  // Layers left out of their kind's group controls (all are included by default).
+  const [groupExcluded, setGroupExcluded] = useState<string[]>([]);
   const seq = useRef(0);
 
   // Each layer's map output is reported here, keyed by id, and merged into the
@@ -129,6 +146,7 @@ export default function App() {
           traceWidth: DEFAULT_TRACE_WIDTH,
           dataset: result.dataset,
           info: bits.join(" · "),
+          settings: defaultOlfactorySettings(result.dataset),
         },
       ]);
     } catch (e) {
@@ -151,6 +169,7 @@ export default function App() {
         traceWidth: DEFAULT_TRACE_WIDTH,
         audioFile: file,
         gpxText: null,
+        metric: meydaProvider.metricNames[0],
       },
     ]);
   };
@@ -177,11 +196,54 @@ export default function App() {
   const setRenderMode = (id: string, render: RenderMode) =>
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, render } : l)));
 
+  const updateOlfactorySettings = (id: string, patch: Partial<OlfactorySettings>) =>
+    setLayers((prev) =>
+      prev.map((l) =>
+        l.id === id && l.kind === "olfactory" ? { ...l, settings: { ...l.settings, ...patch } } : l,
+      ),
+    );
+
+  const setMetric = (id: string, metric: string) =>
+    setLayers((prev) =>
+      prev.map((l) => (l.id === id && l.kind === "acoustic" ? { ...l, metric } : l)),
+    );
+
+  // --- Group controls: apply one change to every targeted layer of a kind. ---
+
+  const isGroupTarget = (l: Layer, kind: LayerKind) =>
+    l.kind === kind && !groupExcluded.includes(l.id);
+
+  const toggleGroupMember = (id: string) =>
+    setGroupExcluded((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+
+  const setGroupRenderMode = (kind: LayerKind, render: RenderMode) =>
+    setLayers((prev) => prev.map((l) => (isGroupTarget(l, kind) ? { ...l, render } : l)));
+
+  const setGroupVisible = (kind: LayerKind, visible: boolean) =>
+    setLayers((prev) => prev.map((l) => (isGroupTarget(l, kind) ? { ...l, visible } : l)));
+
+  const applyOlfactoryGroup: ApplyOlfactory = (patchFor) =>
+    setLayers((prev) =>
+      prev.map((l) => {
+        if (l.kind !== "olfactory" || !isGroupTarget(l, "olfactory")) return l;
+        const patch = patchFor(l.dataset, l.settings);
+        return patch ? { ...l, settings: { ...l.settings, ...patch } } : l;
+      }),
+    );
+
+  const setGroupMetric = (metric: string) =>
+    setLayers((prev) =>
+      prev.map((l) => (l.kind === "acoustic" && isGroupTarget(l, "acoustic") ? { ...l, metric } : l)),
+    );
+
   const setTraceWidth = (id: string, traceWidth: number) =>
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, traceWidth } : l)));
 
   const removeLayer = (id: string) => {
     setLayers((prev) => prev.filter((l) => l.id !== id));
+    setGroupExcluded((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev));
     setOutputs((prev) => {
       const next = { ...prev };
       delete next[id];
@@ -269,6 +331,12 @@ export default function App() {
               set each layer's map style (Circles, Streak or Both). The map fits to
               all visible layers at once.
             </li>
+            <li>
+              <strong>Control many layers at once.</strong> With two or more layers
+              of a kind, a <em>Control all … layers</em> card appears: switch the
+              colour channel, clustering or map style for every layer of that kind
+              in one go.
+            </li>
           </ol>
           <p>
             No data yet? Load the files in <code>sample-data/</code>, or see{" "}
@@ -314,6 +382,42 @@ export default function App() {
         )}
 
         <div className="layers">
+          {(["olfactory", "acoustic"] as const).map((kind) => {
+            const ofKind = layers.filter((l) => l.kind === kind);
+            // Group controls only earn their place once there is a group.
+            if (ofKind.length < 2) return null;
+            const targets = ofKind.filter((l) => isGroupTarget(l, kind));
+            return (
+              <GroupControls
+                key={`group-${kind}`}
+                kindLabel={kind}
+                members={ofKind.map((l) => ({
+                  id: l.id,
+                  name: l.name,
+                  accent: l.accent,
+                  included: !groupExcluded.includes(l.id),
+                }))}
+                onToggleMember={toggleGroupMember}
+                renderMode={common(targets.map((l) => l.render))}
+                onRenderModeChange={(mode) => setGroupRenderMode(kind, mode)}
+                onSetVisible={(v) => setGroupVisible(kind, v)}
+              >
+                {kind === "olfactory" ? (
+                  <OlfactoryGroupControls
+                    targets={targets.flatMap((l) =>
+                      l.kind === "olfactory" ? [{ dataset: l.dataset, settings: l.settings }] : [],
+                    )}
+                    onApply={applyOlfactoryGroup}
+                  />
+                ) : (
+                  <AcousticGroupControls
+                    metrics={targets.flatMap((l) => (l.kind === "acoustic" ? [l.metric] : []))}
+                    onChange={setGroupMetric}
+                  />
+                )}
+              </GroupControls>
+            );
+          })}
           {layers.map((layer) => (
             <LayerCard
               key={layer.id}
@@ -336,6 +440,8 @@ export default function App() {
                   <OlfactoryPanel
                     layerId={layer.id}
                     dataset={layer.dataset}
+                    settings={layer.settings}
+                    onSettingsChange={(patch) => updateOlfactorySettings(layer.id, patch)}
                     onLayerData={onLayerData}
                   />
                 </>
@@ -357,6 +463,8 @@ export default function App() {
                     accent={layer.accent}
                     audioFile={layer.audioFile}
                     gpxText={layer.gpxText}
+                    metric={layer.metric}
+                    onMetricChange={(m) => setMetric(layer.id, m)}
                     onLayerData={onLayerData}
                     onPlayhead={onPlayhead}
                   />
