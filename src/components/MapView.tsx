@@ -20,6 +20,7 @@ import {
   type PathOptions,
 } from "leaflet";
 import type { Feature, FeatureCollection } from "geojson";
+import { contextPathStyle, contextPointStyle, STYLE_KEYS } from "../context/style";
 import { categoricalColor } from "../lib/color";
 import type { FingerprintMedia } from "../types";
 import RadarChart, { type RadarAxis, type RadarSeries } from "./RadarChart";
@@ -347,7 +348,7 @@ function featurePopupHtml(layerName: string, f: Feature): string | null {
   const props = f.properties ?? {};
   const name = typeof props.name === "string" ? props.name : undefined;
   const rows = Object.entries(props)
-    .filter(([k, v]) => k !== "name" && v !== null && v !== undefined && v !== "")
+    .filter(([k, v]) => k !== "name" && !STYLE_KEYS.has(k) && v !== null && v !== undefined && v !== "")
     .slice(0, 30)
     .map(([k, v]) => {
       const text = typeof v === "object" ? JSON.stringify(v) : String(v);
@@ -366,37 +367,25 @@ function styleContextPaths(l: LeafletLayer, style: PathOptions) {
   else if (l instanceof LayerGroup) l.eachLayer((c) => styleContextPaths(c, style));
 }
 
-/** A context layer's geodata, drawn in its accent colour in a pane beneath the
- *  sensory layers so walks stay on top. Line width follows the layer's trace
- *  width. Keyed on its styling so a colour/width change rebuilds the layer. */
+/** A context layer's geodata, drawn in a pane beneath the sensory layers so
+ *  walks stay on top. Each feature keeps the colours and widths its file gives
+ *  it; the layer's accent colour fills in where the file sets none. The width
+ *  slider scales every line. Keyed on its styling so a change rebuilds it. */
 const ContextGraphics = memo(function ContextGraphics({ layer }: { layer: MapLayer }) {
   if (!layer.geojson) return null;
-  const weight = (layer.traceWidth ?? DEFAULT_TRACE_WIDTH) * TRACK_WIDTH_RATIO * 1.5;
+  const scale = (layer.traceWidth ?? DEFAULT_TRACE_WIDTH) / DEFAULT_TRACE_WIDTH;
   return (
     <GeoJSON
-      key={`${layer.id}:${layer.accent}:${weight}:${layer.name}`}
+      key={`${layer.id}:${layer.accent}:${scale}:${layer.name}`}
       data={layer.geojson}
       pane="context"
-      pointToLayer={(_f, latlng) =>
-        circleMarker(latlng, {
-          pane: "context",
-          radius: 5,
-          color: "#fff",
-          weight: 1.5,
-          fillColor: layer.accent,
-          fillOpacity: 0.9,
-        })
+      pointToLayer={(f, latlng) =>
+        circleMarker(latlng, { pane: "context", ...contextPointStyle(f, layer.accent) })
       }
       onEachFeature={(f: Feature, l: LeafletLayer) => {
         // Style lines and areas here rather than via `style`, which would also
         // restyle the point markers (including points inside a collection).
-        styleContextPaths(l, {
-          color: layer.accent,
-          weight,
-          opacity: 0.8,
-          fillColor: layer.accent,
-          fillOpacity: 0.15,
-        });
+        styleContextPaths(l, contextPathStyle(f, layer.accent, scale));
         const html = featurePopupHtml(layer.name, f);
         if (html) l.bindPopup(html);
       }}
