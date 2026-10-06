@@ -34,8 +34,10 @@ built to deploy as a static site to GitHub Pages, Netlify, or any static host.
 ### Context layers
 - **Overlay other geographic data** — routes, areas, points of interest — from
   **GeoJSON**, **GPX** or **KML/KMZ** files with **+ Add context layer**. Each
-  file becomes a layer drawn beneath the sensory walks in its accent colour;
-  click a feature to see its name and attributes. Hide, rename, remove or change
+  file becomes a layer drawn beneath the sensory walks, **in the colours set in
+  the file** (KML styles, GeoJSON `stroke`/`fill`, GPX colour extensions), or
+  in the layer's accent colour where it has none; click a feature to see its
+  name and attributes. Hide, rename, remove or change
   its line width like any other layer.
 
 ### Olfactory

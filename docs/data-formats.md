@@ -243,8 +243,12 @@ un-located (and not mapped).
 
 **+ Add context layer** overlays other geographic data — routes, areas, points
 of interest — as reference beneath the sensory layers. Each file becomes one
-layer drawn in its accent colour (lines, translucent areas, dot markers); it can
-be hidden, renamed, removed and its line width changed like any other layer.
+layer; it can be hidden, renamed, removed and its line width changed (the
+slider scales every line) like any other layer.
+
+**Shapes keep the colours set in the file.** Features without a style of their
+own are drawn in the layer's accent colour (lines, translucent areas, dot
+markers). Style attributes are hidden from the feature popups.
 Clicking a feature shows its name and attributes. Context layers have no
 samples, so they take no part in clustering, colouring or group controls.
 
@@ -258,8 +262,14 @@ samples, so they take no part in clustering, colouring or group controls.
 - Coordinates must be **WGS84 longitude/latitude** (EPSG:4326, as the GeoJSON
   spec requires). Features in a projected system (e.g. SWEREF 99 TM metres) are
   skipped with a warning; reproject such files first (e.g. in QGIS).
-- KML styles, icons, network links, overlays and timestamps are not read; the
-  layer's accent colour is used instead.
+- Icons, labels, network links, ground overlays and timestamps are not read;
+  points are drawn as dots in their marker/icon colour.
+
+| Format | Style read |
+|---|---|
+| GeoJSON | [simplestyle-spec](https://github.com/mapbox/simplestyle-spec) properties (`stroke`, `stroke-width`, `stroke-opacity`, `fill`, `fill-opacity`, `marker-color`, `marker-size`), as written by geojson.io, QGIS and similar tools; uMap's `_umap_options` and a Leaflet-style `style` object (`color`, `weight`, `opacity`, `fillColor`, `fillOpacity`) also work. |
+| KML/KMZ | Shared `<Style id>` and `<StyleMap>` (its `normal` style) via `<styleUrl>`, plus inline `<Style>`: `LineStyle` colour and width, `PolyStyle` colour and `fill`/`outline` flags, `IconStyle` colour. |
+| GPX | Colour extensions on `<trk>`, `<rte>` and `<wpt>`: Garmin `gpxx:DisplayColor` (named colours), `gpx_style:line` (`color`, `opacity`, `width`) and OsmAnd `osmand:color`/`osmand:width`. |
 - When the file names itself (GeoJSON `name`, GPX `<metadata><name>`, KML
   `<Document><name>`), that becomes the layer name.
 

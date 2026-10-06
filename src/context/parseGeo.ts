@@ -3,11 +3,13 @@
 // points of interest) beneath the sensory layers.
 //
 // GPX and KML are converted with a small built-in reader rather than a library:
-// we only need geometry plus a name/description/attribute table for popups, not
-// styles, icons or timestamps.
+// we need geometry, a name/description/attribute table for popups, and the
+// line/fill colours (normalised to simplestyle properties, see ./style) — not
+// icons or timestamps.
 
 import { unzipSync, strFromU8 } from "fflate";
 import type { Feature, FeatureCollection, Geometry, GeoJsonProperties, Position } from "geojson";
+import { parseGpxColor, parseKmlColor } from "./style";
 
 export type GeoFormat = "geojson" | "gpx" | "kml" | "kmz";
 
@@ -136,8 +138,8 @@ function feature(geometry: Geometry, properties: GeoJsonProperties): Feature {
 }
 
 /** Drop undefined values so popups only list what the file actually has. */
-function props(entries: Record<string, string | undefined>): GeoJsonProperties {
-  const out: Record<string, string> = {};
+function props(entries: Record<string, string | number | undefined>): GeoJsonProperties {
+  const out: Record<string, string | number> = {};
   for (const [k, v] of Object.entries(entries)) if (v !== undefined) out[k] = v;
   return out;
 }
@@ -158,11 +160,31 @@ function gpxPoints(parent: Element, name: string): Position[] {
     .filter((p): p is Position => p !== null);
 }
 
-function gpxProps(el: Element): GeoJsonProperties {
+/** Colour/width from a GPX element's <extensions>: Garmin
+ *  `gpxx:DisplayColor`, `gpx_style:line` (`color`, `opacity`, `width`) or
+ *  OsmAnd `osmand:color` / `osmand:width`. Written as simplestyle properties. */
+function gpxStyle(el: Element, isPoint: boolean): Record<string, string | number | undefined> {
+  const ext = child(el, "extensions");
+  if (!ext) return {};
+  const colorEl = descendants(ext, "DisplayColor")[0] ?? descendants(ext, "color")[0];
+  const c = parseGpxColor(colorEl?.textContent ?? undefined);
+  const opacity = Number(descendants(ext, "opacity")[0]?.textContent);
+  const width = Number(descendants(ext, "width")[0]?.textContent);
+  const alpha = Number.isFinite(opacity) ? opacity : c?.opacity;
+  if (isPoint) return { "marker-color": c?.color };
+  return {
+    stroke: c?.color,
+    "stroke-opacity": alpha,
+    "stroke-width": Number.isFinite(width) && width > 0 ? width : undefined,
+  };
+}
+
+function gpxProps(el: Element, isPoint = false): GeoJsonProperties {
   return props({
     name: childText(el, "name"),
     description: childText(el, "desc") ?? childText(el, "cmt"),
     type: childText(el, "type"),
+    ...gpxStyle(el, isPoint),
   });
 }
 
@@ -174,7 +196,7 @@ function parseGpxDoc(doc: Document): { features: Feature[]; name?: string } {
 
   for (const wpt of children(root, "wpt")) {
     const p = gpxPoint(wpt);
-    if (p) features.push(feature({ type: "Point", coordinates: p }, gpxProps(wpt)));
+    if (p) features.push(feature({ type: "Point", coordinates: p }, gpxProps(wpt, true)));
   }
   for (const rte of children(root, "rte")) {
     const coords = gpxPoints(rte, "rtept");
@@ -292,10 +314,96 @@ function plainText(html: string | undefined): string | undefined {
   return text || undefined;
 }
 
+/** The parts of a KML <Style> we draw with. */
+interface KmlStyle {
+  line?: { color: string; opacity?: number };
+  lineWidth?: number;
+  poly?: { color: string; opacity?: number };
+  /** PolyStyle <fill>0</fill> / <outline>0</outline>. */
+  noFill?: boolean;
+  noOutline?: boolean;
+  icon?: { color: string; opacity?: number };
+}
+
+function parseKmlStyle(el: Element): KmlStyle {
+  const line = child(el, "LineStyle");
+  const poly = child(el, "PolyStyle");
+  const icon = child(el, "IconStyle");
+  const width = Number(line ? childText(line, "width") : undefined);
+  return {
+    line: line ? parseKmlColor(childText(line, "color")) : undefined,
+    lineWidth: Number.isFinite(width) ? width : undefined,
+    poly: poly ? parseKmlColor(childText(poly, "color")) : undefined,
+    noFill: poly ? childText(poly, "fill") === "0" : undefined,
+    noOutline: poly ? childText(poly, "outline") === "0" : undefined,
+    icon: icon ? parseKmlColor(childText(icon, "color")) : undefined,
+  };
+}
+
+/** Later styles override earlier ones field by field (shared, then inline). */
+function mergeKmlStyles(...styles: (KmlStyle | undefined)[]): KmlStyle {
+  const out: KmlStyle = {};
+  for (const st of styles) {
+    if (!st) continue;
+    for (const [k, v] of Object.entries(st)) {
+      if (v !== undefined) (out as Record<string, unknown>)[k] = v;
+    }
+  }
+  return out;
+}
+
+/** Shared styles by id: every <Style id> plus every <StyleMap id>, resolved to
+ *  its "normal" pair (the look when not hovered). */
+function kmlStyleTable(doc: Document): Map<string, KmlStyle> {
+  const table = new Map<string, KmlStyle>();
+  for (const st of descendants(doc, "Style")) {
+    const id = st.getAttribute("id");
+    if (id) table.set(id, parseKmlStyle(st));
+  }
+  for (const map of descendants(doc, "StyleMap")) {
+    const id = map.getAttribute("id");
+    if (!id) continue;
+    const normal =
+      children(map, "Pair").find((p) => childText(p, "key") === "normal") ?? child(map, "Pair");
+    if (!normal) continue;
+    const inline = child(normal, "Style");
+    const url = childText(normal, "styleUrl");
+    table.set(id, mergeKmlStyles(url ? table.get(styleRef(url)) : undefined, inline && parseKmlStyle(inline)));
+  }
+  return table;
+}
+
+/** "#id" or "doc.kml#id" → "id". */
+function styleRef(url: string): string {
+  return url.slice(url.lastIndexOf("#") + 1);
+}
+
+/** A placemark's resolved style as simplestyle properties. */
+function kmlPlacemarkStyle(
+  pm: Element,
+  table: Map<string, KmlStyle>,
+  geometry: Geometry,
+): Record<string, string | number | undefined> {
+  const url = childText(pm, "styleUrl");
+  const inline = child(pm, "Style");
+  const st = mergeKmlStyles(url ? table.get(styleRef(url)) : undefined, inline && parseKmlStyle(inline));
+  // <outline>0</outline> only applies to polygons; don't hide a line with it.
+  const polygonOnly = geometry.type === "Polygon" || geometry.type === "MultiPolygon";
+  return {
+    stroke: st.line?.color,
+    "stroke-opacity": st.noOutline && polygonOnly ? 0 : st.line?.opacity,
+    "stroke-width": st.lineWidth,
+    fill: st.poly?.color,
+    "fill-opacity": st.noFill ? 0 : st.poly?.opacity,
+    "marker-color": st.icon?.color,
+  };
+}
+
 function parseKmlDoc(doc: Document): { features: Feature[]; name?: string } {
   const docEl = descendants(doc, "Document")[0];
   const name = docEl ? childText(docEl, "name") : undefined;
   const features: Feature[] = [];
+  const styles = kmlStyleTable(doc);
 
   for (const pm of descendants(doc, "Placemark")) {
     const geomEl = Array.from(pm.children).find((c) => KML_GEOMETRY_TAGS.has(c.localName));
@@ -317,6 +425,7 @@ function parseKmlDoc(doc: Document): { features: Feature[]; name?: string } {
           name: childText(pm, "name"),
           description: plainText(childText(pm, "description")),
           ...extended,
+          ...kmlPlacemarkStyle(pm, styles, geometry),
         }),
       ),
     );
