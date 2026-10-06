@@ -1,13 +1,25 @@
 import { Fragment, memo, useEffect, useMemo } from "react";
 import {
   CircleMarker,
+  GeoJSON,
   MapContainer,
+  Pane,
   Polyline,
   Popup,
   TileLayer,
   useMap,
 } from "react-leaflet";
-import { LatLngBounds } from "leaflet";
+import {
+  circleMarker,
+  CircleMarker as CircleMarkerLayer,
+  geoJSON,
+  LatLngBounds,
+  LayerGroup,
+  Path,
+  type Layer as LeafletLayer,
+  type PathOptions,
+} from "leaflet";
+import type { Feature, FeatureCollection } from "geojson";
 import { categoricalColor } from "../lib/color";
 import type { FingerprintMedia } from "../types";
 import RadarChart, { type RadarAxis, type RadarSeries } from "./RadarChart";
@@ -73,6 +85,9 @@ export interface MapLayer {
   /** Radar axes (channels + dataset-wide ranges) for this layer's fingerprints.
    *  Present on olfactory layers; enables the fingerprint overlay for its points. */
   fingerprintAxes?: RadarAxis[];
+  /** Reference geodata (paths, areas, points of interest) drawn in the layer's
+   *  accent colour beneath the sensory layers. Present on context layers. */
+  geojson?: FeatureCollection;
 }
 
 /** The live GPS position of an acoustic layer during audio playback. */
@@ -113,7 +128,10 @@ function FitBounds({ layers }: { layers: MapLayer[] }) {
   // Fingerprint the drawn geometry so we only re-fit when it actually changes,
   // not on every parent re-render.
   const key = layers
-    .map((l) => `${l.id}:${l.points.length}:${l.polyline?.length ?? 0}`)
+    .map(
+      (l) =>
+        `${l.id}:${l.points.length}:${l.polyline?.length ?? 0}:${l.geojson?.features.length ?? 0}`,
+    )
     .join("|");
   useEffect(() => {
     const coords: [number, number][] = [];
@@ -121,8 +139,10 @@ function FitBounds({ layers }: { layers: MapLayer[] }) {
       for (const p of l.points) coords.push([p.lat, p.lon]);
       if (l.polyline) coords.push(...l.polyline);
     }
-    if (coords.length === 0) return;
     const bounds = new LatLngBounds(coords);
+    for (const l of layers) {
+      if (l.geojson) bounds.extend(geoJSON(l.geojson).getBounds());
+    }
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [30, 30], maxZoom: 18 });
     }
@@ -318,6 +338,72 @@ const LayerGraphics = memo(function LayerGraphics({
   );
 });
 
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+/** Popup HTML for a context feature: its name, then its other attributes. */
+function featurePopupHtml(layerName: string, f: Feature): string | null {
+  const props = f.properties ?? {};
+  const name = typeof props.name === "string" ? props.name : undefined;
+  const rows = Object.entries(props)
+    .filter(([k, v]) => k !== "name" && v !== null && v !== undefined && v !== "")
+    .slice(0, 30)
+    .map(([k, v]) => {
+      const text = typeof v === "object" ? JSON.stringify(v) : String(v);
+      return `<tr><td class="popup-key">${escapeHtml(k)}</td><td>${escapeHtml(text)}</td></tr>`;
+    });
+  if (!name && rows.length === 0) return null;
+  const title = escapeHtml(name ? `${layerName} · ${name}` : layerName);
+  const table = rows.length ? `<table><tbody>${rows.join("")}</tbody></table>` : "";
+  return `<div class="popup"><strong>${title}</strong>${table}</div>`;
+}
+
+/** Apply a path style to a feature's lines/areas, leaving point markers as-is. */
+function styleContextPaths(l: LeafletLayer, style: PathOptions) {
+  if (l instanceof CircleMarkerLayer) return;
+  if (l instanceof Path) l.setStyle(style);
+  else if (l instanceof LayerGroup) l.eachLayer((c) => styleContextPaths(c, style));
+}
+
+/** A context layer's geodata, drawn in its accent colour in a pane beneath the
+ *  sensory layers so walks stay on top. Line width follows the layer's trace
+ *  width. Keyed on its styling so a colour/width change rebuilds the layer. */
+const ContextGraphics = memo(function ContextGraphics({ layer }: { layer: MapLayer }) {
+  if (!layer.geojson) return null;
+  const weight = (layer.traceWidth ?? DEFAULT_TRACE_WIDTH) * TRACK_WIDTH_RATIO * 1.5;
+  return (
+    <GeoJSON
+      key={`${layer.id}:${layer.accent}:${weight}:${layer.name}`}
+      data={layer.geojson}
+      pane="context"
+      pointToLayer={(_f, latlng) =>
+        circleMarker(latlng, {
+          pane: "context",
+          radius: 5,
+          color: "#fff",
+          weight: 1.5,
+          fillColor: layer.accent,
+          fillOpacity: 0.9,
+        })
+      }
+      onEachFeature={(f: Feature, l: LeafletLayer) => {
+        // Style lines and areas here rather than via `style`, which would also
+        // restyle the point markers (including points inside a collection).
+        styleContextPaths(l, {
+          color: layer.accent,
+          weight,
+          opacity: 0.8,
+          fillColor: layer.accent,
+          fillOpacity: 0.15,
+        });
+        const html = featurePopupHtml(layer.name, f);
+        if (html) l.bindPopup(html);
+      }}
+    />
+  );
+});
+
 /** The moving "you are here" marker for a playing layer: a translucent halo
  *  behind a solid accent dot, so it stands out against the sample markers. */
 function Playhead({ marker }: { marker: PlayheadMarker }) {
@@ -475,6 +561,13 @@ export default function MapView({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           maxZoom={19}
         />
+        {/* Context geodata sits between the tiles (200) and the sensory
+            layers' overlay pane (400). */}
+        <Pane name="context" style={{ zIndex: 350 }}>
+          {layers.map((layer) =>
+            layer.geojson ? <ContextGraphics key={layer.id} layer={layer} /> : null,
+          )}
+        </Pane>
         {layers.map((layer) => (
           <LayerGraphics
             key={layer.id}

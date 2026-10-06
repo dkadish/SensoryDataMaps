@@ -12,16 +12,21 @@ interface Props {
   kindLabel: string;
   accent: string;
   visible: boolean;
-  /** How this layer draws its samples on the map. */
-  renderMode: RenderMode;
+  /** How this layer draws its samples on the map. Omitted for layers without
+   *  samples (context geodata), which hides the style picker. */
+  renderMode?: RenderMode;
   /** Stroke width (px) of the streak / track line. */
   traceWidth: number;
+  /** Label for the width slider; defaults to "Trace". */
+  traceLabel?: string;
   /** Number of points this layer currently draws on the map. */
   pointCount: number;
+  /** Replaces the "N points on map" summary, e.g. a feature count. */
+  summary?: string;
   onToggleVisible: () => void;
   onRemove: () => void;
   onRename: (name: string) => void;
-  onRenderModeChange: (mode: RenderMode) => void;
+  onRenderModeChange?: (mode: RenderMode) => void;
   onTraceWidthChange: (width: number) => void;
   children: ReactNode;
 }
@@ -36,7 +41,9 @@ export default function LayerCard({
   visible,
   renderMode,
   traceWidth,
+  traceLabel = "Trace",
   pointCount,
+  summary,
   onToggleVisible,
   onRemove,
   onRename,
@@ -117,35 +124,38 @@ export default function LayerCard({
       <div className="layer-meta">
         <span className="layer-kind">{kindLabel}</span>
         <span className="muted small">
-          {pointCount > 0 ? `${pointCount.toLocaleString()} points on map` : "not yet mapped"}
+          {summary ??
+            (pointCount > 0 ? `${pointCount.toLocaleString()} points on map` : "not yet mapped")}
         </span>
       </div>
-      <div className="layer-render" role="group" aria-label="Map style">
-        <span className="muted small">Style</span>
-        <div className="segmented">
-          {RENDER_MODES.map((m) => (
-            <button
-              key={m.value}
-              type="button"
-              className={`seg ${renderMode === m.value ? "on" : ""}`}
-              title={m.title}
-              aria-pressed={renderMode === m.value}
-              onClick={() => onRenderModeChange(m.value)}
-            >
-              {m.label}
-            </button>
-          ))}
+      {renderMode && onRenderModeChange && (
+        <div className="layer-render" role="group" aria-label="Map style">
+          <span className="muted small">Style</span>
+          <div className="segmented">
+            {RENDER_MODES.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                className={`seg ${renderMode === m.value ? "on" : ""}`}
+                title={m.title}
+                aria-pressed={renderMode === m.value}
+                onClick={() => onRenderModeChange(m.value)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
       <label className="layer-render" title="Thickness of the streak and track line">
-        <span className="muted small">Trace</span>
+        <span className="muted small">{traceLabel}</span>
         <input
           type="range"
           min={1}
           max={20}
           step={1}
           value={traceWidth}
-          aria-label="Trace width"
+          aria-label={`${traceLabel} width`}
           onChange={(e) => onTraceWidthChange(Number(e.target.value))}
         />
         <span className="muted small trace-width-value">{traceWidth}px</span>
