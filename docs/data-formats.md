@@ -1,7 +1,7 @@
 # Data formats
 
 Sensory Data Maps ingests olfactory CSVs and zip exports from the BRIAN app,
-GPX tracks and audio files. The olfactory CSV section below
+GPX tracks and audio files, plus GeoJSON / GPX / KML context layers. The olfactory CSV section below
 describes the **actual smell-walk app export** (an example ships in
 `sample-data/smellwalk-2026-09-11.csv`); the parser is deliberately tolerant so
 it also accepts related layouts and future columns (more sensors, environmental
@@ -170,7 +170,8 @@ export. Only track points are read:
 - `lat`, `lon` attributes are required on each `<trkpt>`.
 - `<time>` is required for time-based sync with audio. Points are sorted by time.
 - `<ele>` (elevation, m) is optional.
-- Waypoints (`<wpt>`) and routes (`<rte>`) are ignored for now.
+- Waypoints (`<wpt>`) and routes (`<rte>`) are ignored here (add the file as
+  a **context layer**, section 4, to show them).
 
 A GPX is **optional** when the audio file already carries its own GPS track —
 see below.
@@ -235,6 +236,32 @@ one of:
 Each analysis window's location is found by linearly interpolating the track at
 `audioStart + windowTime`. Windows outside the track's time range are left
 un-located (and not mapped).
+
+---
+
+## 4. Context layers (GeoJSON, GPX, KML/KMZ)
+
+**+ Add context layer** overlays other geographic data — routes, areas, points
+of interest — as reference beneath the sensory layers. Each file becomes one
+layer drawn in its accent colour (lines, translucent areas, dot markers); it can
+be hidden, renamed, removed and its line width changed like any other layer.
+Clicking a feature shows its name and attributes. Context layers have no
+samples, so they take no part in clustering, colouring or group controls.
+
+| Format | Extensions | What is read |
+|---|---|---|
+| [GeoJSON](https://geojson.org/) | `.geojson`, `.json` | A `FeatureCollection`, a single `Feature` or a bare geometry. All geometry types. Feature `properties` become the popup table. |
+| [GPX 1.1](https://www.topografix.com/gpx.asp) | `.gpx` | Waypoints (`<wpt>`) as points, routes (`<rte>`) and tracks (`<trk>`, one line per segment) as lines, with `<name>`, `<desc>`/`<cmt>` and `<type>`. |
+| [KML](https://developers.google.com/kml/documentation) | `.kml` | Every `<Placemark>` (in any folder): `Point`, `LineString`, `LinearRing`, `Polygon` (with holes), `MultiGeometry` and `gx:Track`, with `<name>`, `<description>` (HTML stripped) and `<ExtendedData>`. |
+| KMZ | `.kmz` | The zipped KML: `doc.kml`, or else the first `.kml` in the archive. |
+
+- Coordinates must be **WGS84 longitude/latitude** (EPSG:4326, as the GeoJSON
+  spec requires). Features in a projected system (e.g. SWEREF 99 TM metres) are
+  skipped with a warning; reproject such files first (e.g. in QGIS).
+- KML styles, icons, network links, overlays and timestamps are not read; the
+  layer's accent colour is used instead.
+- When the file names itself (GeoJSON `name`, GPX `<metadata><name>`, KML
+  `<Document><name>`), that becomes the layer name.
 
 ---
 

@@ -31,6 +31,13 @@ built to deploy as a static site to GitHub Pages, Netlify, or any static host.
   changes the layers that record it; each layer's own controls still work for
   fine-tuning afterwards.
 
+### Context layers
+- **Overlay other geographic data** — routes, areas, points of interest — from
+  **GeoJSON**, **GPX** or **KML/KMZ** files with **+ Add context layer**. Each
+  file becomes a layer drawn beneath the sensory walks in its accent colour;
+  click a feature to see its name and attributes. Hide, rename, remove or change
+  its line width like any other layer.
+
 ### Olfactory
 - Load a **BRIAN CSV** export (gas-sensor voltages + GPS), or the BRIAN app's
   per-walk **zip export** (all 11 gas channels + environmental data, plus
@@ -86,7 +93,8 @@ npm run typecheck  # type-check only
 - `kungsparken-sound-walk.gpx` — a Strava GPX sound-walk track (3,909 points).
   Add your own audio with **+ Add acoustic layer**, then upload this GPX inside
   the layer to see the route and place the computed metrics along it. Load both
-  sample files to see the two walks overlaid as layers.
+  sample files to see the two walks overlaid as layers. It can also be added
+  directly with **+ Add context layer** to show the route as a reference.
 
 ## Data formats
 

@@ -26,8 +26,11 @@ import { parseBrianCsv } from "./olfactory/parseBrianCsv";
 import { isZip, parseBrianZip } from "./olfactory/parseBrianZip";
 import { readArrayBuffer, readTextFile } from "./lib/readFile";
 import { categoricalColor } from "./lib/color";
+import { GEO_ACCEPT, parseGeoFile, summariseGeo } from "./context/parseGeo";
+import type { FeatureCollection } from "geojson";
 import type { OlfactoryDataset } from "./types";
 
+/** Sensory layer kinds — the ones with samples, styles and group controls. */
 type LayerKind = "olfactory" | "acoustic";
 
 /** The map output a layer's panel produces, keyed by layer id in App state. */
@@ -50,6 +53,15 @@ interface BaseLayer {
   traceWidth: number;
 }
 
+/** Reference geodata (GeoJSON / GPX / KML) shown as context under the walks. */
+interface ContextLayer extends BaseLayer {
+  kind: "context";
+  geojson: FeatureCollection;
+  /** One-line summary, e.g. "3 lines, 12 points". */
+  summary: string;
+  info: string;
+}
+
 interface OlfactoryLayer extends BaseLayer {
   kind: "olfactory";
   dataset: OlfactoryDataset;
@@ -65,7 +77,7 @@ interface AcousticLayer extends BaseLayer {
   metric: string;
 }
 
-type Layer = OlfactoryLayer | AcousticLayer;
+type Layer = OlfactoryLayer | AcousticLayer | ContextLayer;
 
 export default function App() {
   const [layers, setLayers] = useState<Layer[]>([]);
@@ -174,6 +186,34 @@ export default function App() {
     ]);
   };
 
+  const handleAddContext = async (file: File) => {
+    setAddError(null);
+    try {
+      const bytes = new Uint8Array(await readArrayBuffer(file));
+      const parsed = parseGeoFile(file.name, bytes);
+      const summary = summariseGeo(parsed.data);
+      const bits = [`${parsed.format.toUpperCase()}: ${summary}`, ...parsed.warnings];
+      const { id, accent } = nextLayerBase();
+      setLayers((prev) => [
+        ...prev,
+        {
+          id,
+          kind: "context",
+          name: parsed.name || file.name,
+          visible: true,
+          accent,
+          render: "circles",
+          traceWidth: DEFAULT_TRACE_WIDTH,
+          geojson: parsed.data,
+          summary,
+          info: bits.join(" · "),
+        },
+      ]);
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const handleAddGpx = async (id: string, file: File) => {
     try {
       const text = await readTextFile(file);
@@ -279,12 +319,16 @@ export default function App() {
             polyline: o?.polyline,
             legend: o?.legend,
             fingerprintAxes: o?.fingerprintAxes,
+            geojson: l.kind === "context" ? l.geojson : undefined,
           };
         }),
     [layers, outputs],
   );
 
-  const totalPoints = mapLayers.reduce((n, l) => n + l.points.length, 0);
+  const totalPoints = mapLayers.reduce(
+    (n, l) => n + l.points.length + (l.geojson?.features.length ?? 0),
+    0,
+  );
 
   // Playhead markers for currently-visible layers, tinted with the layer accent.
   const playheadMarkers = useMemo<PlayheadMarker[]>(
@@ -319,6 +363,11 @@ export default function App() {
             <li>
               <strong>Add a layer.</strong> Use <em>+ Add olfactory layer</em> for a
               BRIAN CSV export, or <em>+ Add acoustic layer</em> for an audio file.
+            </li>
+            <li>
+              <strong>Add context (optional).</strong> Use <em>+ Add context layer</em>{" "}
+              to overlay other geodata — routes, areas or points of interest from a
+              GeoJSON, GPX or KML/KMZ file — beneath your walks.
             </li>
             <li>
               <strong>Configure it.</strong> Each layer opens its own controls —
@@ -371,6 +420,17 @@ export default function App() {
               }}
             />
           </label>
+          <label className="filebtn">
+            + Add context layer (GeoJSON, GPX, KML)
+            <input
+              type="file"
+              accept={GEO_ACCEPT}
+              onChange={(e) => {
+                if (e.target.files?.[0]) handleAddContext(e.target.files[0]);
+                e.target.value = "";
+              }}
+            />
+          </label>
           {addError && <p className="error">{addError}</p>}
         </section>
 
@@ -418,60 +478,84 @@ export default function App() {
               </GroupControls>
             );
           })}
-          {layers.map((layer) => (
-            <LayerCard
-              key={layer.id}
-              name={layer.name}
-              kindLabel={layer.kind === "olfactory" ? "Olfactory" : "Acoustic"}
-              accent={layer.accent}
-              visible={layer.visible}
-              renderMode={layer.render}
-              traceWidth={layer.traceWidth}
-              pointCount={outputs[layer.id]?.points.length ?? 0}
-              onToggleVisible={() => toggleVisible(layer.id)}
-              onRemove={() => removeLayer(layer.id)}
-              onRename={(name) => renameLayer(layer.id, name)}
-              onRenderModeChange={(mode) => setRenderMode(layer.id, mode)}
-              onTraceWidthChange={(w) => setTraceWidth(layer.id, w)}
-            >
-              {layer.kind === "olfactory" ? (
-                <>
-                  {layer.info && <p className="muted small">{layer.info}</p>}
-                  <OlfactoryPanel
-                    layerId={layer.id}
-                    dataset={layer.dataset}
-                    settings={layer.settings}
-                    onSettingsChange={(patch) => updateOlfactorySettings(layer.id, patch)}
-                    onLayerData={onLayerData}
-                  />
-                </>
-              ) : (
-                <>
-                  <label className="filebtn small">
-                    {layer.gpxText ? `GPX: ${layer.gpxText.name}` : "Upload GPX track (optional)"}
-                    <input
-                      type="file"
-                      accept=".gpx,application/gpx+xml,text/xml"
-                      onChange={(e) => {
-                        if (e.target.files?.[0]) handleAddGpx(layer.id, e.target.files[0]);
-                        e.target.value = "";
-                      }}
+          {layers.map((layer) =>
+            layer.kind === "context" ? (
+              <LayerCard
+                key={layer.id}
+                name={layer.name}
+                kindLabel="Context"
+                accent={layer.accent}
+                visible={layer.visible}
+                traceWidth={layer.traceWidth}
+                traceLabel="Line"
+                pointCount={0}
+                summary={layer.summary}
+                onToggleVisible={() => toggleVisible(layer.id)}
+                onRemove={() => removeLayer(layer.id)}
+                onRename={(name) => renameLayer(layer.id, name)}
+                onTraceWidthChange={(w) => setTraceWidth(layer.id, w)}
+              >
+                <p className="muted small">{layer.info}</p>
+                <p className="muted small">
+                  Reference geodata, drawn beneath the sensory layers. Click a
+                  feature to see its attributes.
+                </p>
+              </LayerCard>
+            ) : (
+              <LayerCard
+                key={layer.id}
+                name={layer.name}
+                kindLabel={layer.kind === "olfactory" ? "Olfactory" : "Acoustic"}
+                accent={layer.accent}
+                visible={layer.visible}
+                renderMode={layer.render}
+                traceWidth={layer.traceWidth}
+                pointCount={outputs[layer.id]?.points.length ?? 0}
+                onToggleVisible={() => toggleVisible(layer.id)}
+                onRemove={() => removeLayer(layer.id)}
+                onRename={(name) => renameLayer(layer.id, name)}
+                onRenderModeChange={(mode) => setRenderMode(layer.id, mode)}
+                onTraceWidthChange={(w) => setTraceWidth(layer.id, w)}
+              >
+                {layer.kind === "olfactory" ? (
+                  <>
+                    {layer.info && <p className="muted small">{layer.info}</p>}
+                    <OlfactoryPanel
+                      layerId={layer.id}
+                      dataset={layer.dataset}
+                      settings={layer.settings}
+                      onSettingsChange={(patch) => updateOlfactorySettings(layer.id, patch)}
+                      onLayerData={onLayerData}
                     />
-                  </label>
-                  <AcousticPanel
-                    layerId={layer.id}
-                    accent={layer.accent}
-                    audioFile={layer.audioFile}
-                    gpxText={layer.gpxText}
-                    metric={layer.metric}
-                    onMetricChange={(m) => setMetric(layer.id, m)}
-                    onLayerData={onLayerData}
-                    onPlayhead={onPlayhead}
-                  />
-                </>
-              )}
-            </LayerCard>
-          ))}
+                  </>
+                ) : (
+                  <>
+                    <label className="filebtn small">
+                      {layer.gpxText ? `GPX: ${layer.gpxText.name}` : "Upload GPX track (optional)"}
+                      <input
+                        type="file"
+                        accept=".gpx,application/gpx+xml,text/xml"
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) handleAddGpx(layer.id, e.target.files[0]);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <AcousticPanel
+                      layerId={layer.id}
+                      accent={layer.accent}
+                      audioFile={layer.audioFile}
+                      gpxText={layer.gpxText}
+                      metric={layer.metric}
+                      onMetricChange={(m) => setMetric(layer.id, m)}
+                      onLayerData={onLayerData}
+                      onPlayhead={onPlayhead}
+                    />
+                  </>
+                )}
+              </LayerCard>
+            ),
+          )}
         </div>
 
         <footer className="foot">
