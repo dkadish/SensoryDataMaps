@@ -89,6 +89,9 @@ export interface MapLayer {
   /** Reference geodata (paths, areas, points of interest) drawn in the layer's
    *  accent colour beneath the sensory layers. Present on context layers. */
   geojson?: FeatureCollection;
+  /** Streamed from BrianBackend and still growing: the map fits it once, when
+   *  its first points arrive, rather than on every update. */
+  live?: boolean;
 }
 
 /** The live GPS position of an acoustic layer during audio playback. */
@@ -129,9 +132,10 @@ function FitBounds({ layers }: { layers: MapLayer[] }) {
   // Fingerprint the drawn geometry so we only re-fit when it actually changes,
   // not on every parent re-render.
   const key = layers
-    .map(
-      (l) =>
-        `${l.id}:${l.points.length}:${l.polyline?.length ?? 0}:${l.geojson?.features.length ?? 0}`,
+    .map((l) =>
+      l.live
+        ? `${l.id}:live:${l.points.length > 0}`
+        : `${l.id}:${l.points.length}:${l.polyline?.length ?? 0}:${l.geojson?.features.length ?? 0}`,
     )
     .join("|");
   useEffect(() => {

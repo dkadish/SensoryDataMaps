@@ -58,6 +58,9 @@ const ENV_KEYS: Record<string, keyof EnvReadings> = {
   temperature: "temperatureC",
   temperaturec: "temperatureC",
   temp: "temperatureC",
+  // BrianReactNative sensor keys, as used in InfluxDB (live walks).
+  tempc: "temperatureC",
+  gasresohm: "gasResistanceOhm",
   pressure: "pressureHpa",
   pressurehpa: "pressureHpa",
   barometricpressure: "pressureHpa",

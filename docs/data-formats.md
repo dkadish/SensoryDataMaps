@@ -284,3 +284,23 @@ samples, so they take no part in clustering, colouring or group controls.
   computed — only basic per-window metrics. See the `AcousticAnalysisProvider`
   interface for where a `scikit-maad`-parity engine (Pyodide or a Python
   service) would plug in.
+
+---
+
+## Live walks (BrianBackend)
+
+Live layers read the timeseries that BrianReactNative writes to InfluxDB during
+a walk, through BrianBackend's `/api/live/walks` and
+`/api/live/walks/:walkId/samples` endpoints (see the BrianBackend README). The
+app writes one InfluxDB point per sensor every 5 s:
+
+| InfluxDB | Content |
+|---|---|
+| measurement | sensor key: `CH4`, `NO2`, `VOC`, `NH3`, `HCHO`, `Odour`, `Etoh`, `H2S`, `CO`, `Smoke`, `H2`, `TempC`, `PressureHPa`, `HumidityPct`, `AltitudeM`, `GasResOhm` |
+| tags | `walk_id`, `device_name`, `date` |
+| fields | `value`, `latitude`, `longitude`, `accuracy_m` |
+
+The backend groups the points of each 5-second flush into one snapshot. Sensor
+keys go through the same column rules as a CSV: `TempC`, `PressureHPa`,
+`HumidityPct`, `AltitudeM` and `GasResOhm` become environmental metrics, and the
+gas keys become feature channels. Snapshots without a GPS fix are dropped.
