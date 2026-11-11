@@ -2,12 +2,15 @@ import { Fragment, memo, useEffect, useMemo } from "react";
 import {
   CircleMarker,
   GeoJSON,
+  LayerGroup as LayerGroupComponent,
+  LayersControl,
   MapContainer,
   Pane,
   Polyline,
   Popup,
   TileLayer,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import {
   circleMarker,
@@ -526,6 +529,75 @@ function FingerprintPanel({
   );
 }
 
+const OSM_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const ESRI_IMAGERY_ATTRIBUTION =
+  "Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community";
+const ESRI_IMAGERY_URL =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const ESRI_LABELS_URL =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+
+const BASEMAPS = ["Map", "Satellite", "Satellite + labels"] as const;
+type Basemap = (typeof BASEMAPS)[number];
+const BASEMAP_STORAGE_KEY = "sensorydatamaps:basemap";
+
+function loadBasemap(): Basemap {
+  try {
+    const v = localStorage.getItem(BASEMAP_STORAGE_KEY);
+    if (v && (BASEMAPS as readonly string[]).includes(v)) return v as Basemap;
+  } catch {
+    // Storage unavailable (private mode, blocked cookies): use the default.
+  }
+  return "Map";
+}
+
+/** Remembers the basemap the user picks in the layers control. */
+function BasemapMemory() {
+  useMapEvents({
+    baselayerchange: (e) => {
+      try {
+        localStorage.setItem(BASEMAP_STORAGE_KEY, e.name);
+      } catch {
+        // Not critical; the choice just won't survive a reload.
+      }
+    },
+  });
+  return null;
+}
+
+/** Switchable background tiles: OpenStreetMap streets, Esri satellite
+ *  imagery, or imagery with place names and boundaries on top. */
+function BaseLayers() {
+  const initial = useMemo(loadBasemap, []);
+  return (
+    <>
+      <LayersControl position="bottomright">
+        <LayersControl.BaseLayer name="Map" checked={initial === "Map"}>
+          <TileLayer
+            attribution={OSM_ATTRIBUTION}
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maxZoom={19}
+          />
+        </LayersControl.BaseLayer>
+        <LayersControl.BaseLayer name="Satellite" checked={initial === "Satellite"}>
+          <TileLayer attribution={ESRI_IMAGERY_ATTRIBUTION} url={ESRI_IMAGERY_URL} maxZoom={19} />
+        </LayersControl.BaseLayer>
+        <LayersControl.BaseLayer
+          name="Satellite + labels"
+          checked={initial === "Satellite + labels"}
+        >
+          <LayerGroupComponent>
+            <TileLayer attribution={ESRI_IMAGERY_ATTRIBUTION} url={ESRI_IMAGERY_URL} maxZoom={19} />
+            <TileLayer url={ESRI_LABELS_URL} maxZoom={19} />
+          </LayerGroupComponent>
+        </LayersControl.BaseLayer>
+      </LayersControl>
+      <BasemapMemory />
+    </>
+  );
+}
+
 export default function MapView({
   layers,
   playheads,
@@ -545,11 +617,7 @@ export default function MapView({
         style={{ height: "100%", width: "100%" }}
         scrollWheelZoom
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
-        />
+        <BaseLayers />
         {/* Context geodata sits between the tiles (200) and the sensory
             layers' overlay pane (400). */}
         <Pane name="context" style={{ zIndex: 350 }}>
