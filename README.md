@@ -6,8 +6,10 @@ plotting it on an interactive map.
 
 **🌐 Live site: [dkadish.github.io/SensoryDataMaps](https://dkadish.github.io/SensoryDataMaps/)**
 
-It runs entirely in the browser (no server, no data leaves your machine) and is
-built to deploy as a static site to GitHub Pages, Netlify, or any static host.
+It runs entirely in the browser (no server; files you load never leave your
+machine) and is built to deploy as a static site to GitHub Pages, Netlify, or
+any static host. Live walks are the one exception: they are read from
+BrianBackend over the network.
 
 ## What it does
 
@@ -53,6 +55,21 @@ built to deploy as a static site to GitHub Pages, Netlify, or any static host.
   a selectable set of sensor channels, cut into *k* clusters with a slider.
 - **Dendrogram** view, coloured to match the map.
 - Map every sample, coloured by **cluster** or by any single **channel value**.
+
+### Live walks
+- **Watch a smell walk as it happens.** **+ Add live walk (BRIAN backend)**
+  connects to [BrianBackend](https://github.com/ODRResearchGroup/BrianBackend),
+  which the BRIAN mobile app sends its readings to, and lists the walks with
+  recent data (a red dot marks walks that are recording now). Adding one creates
+  an olfactory layer with the walk so far, which then checks for new 5-second
+  snapshots every 5 s. Clustering, colouring and map styles work as for a file.
+- The map fits a live layer once, when its first points arrive, so it doesn't
+  jump while you pan and zoom. **Pause updates** stops a layer polling.
+- The backend URL is remembered in your browser. To pre-fill it for everyone,
+  build with `VITE_BRIAN_BACKEND_URL=https://…` (the Pages workflow reads the
+  repository variable `BRIAN_BACKEND_URL`). The backend must list this site's
+  origin in its `CORS_ORIGINS`.
+- Fingerprints are not streamed yet; load the app's zip export for those.
 
 ### Acoustic
 - Load an **audio file**. Recordings that carry a **GPS track embedded in

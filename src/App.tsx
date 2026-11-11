@@ -12,6 +12,10 @@ import OlfactoryPanel, {
   defaultOlfactorySettings,
   type OlfactorySettings,
 } from "./components/OlfactoryPanel";
+import LiveWalkPicker from "./components/LiveWalkPicker";
+import LiveStatus, { type LiveSource } from "./components/LiveStatus";
+import type { LiveSnapshot, LiveWalk } from "./live/brianBackend";
+import { appendSnapshots, emptyLiveDataset, liveDataset } from "./live/liveDataset";
 import AcousticPanel from "./components/AcousticPanel";
 import LayerCard from "./components/LayerCard";
 import HelpCallout from "./components/HelpCallout";
@@ -67,6 +71,9 @@ interface OlfactoryLayer extends BaseLayer {
   dataset: OlfactoryDataset;
   info: string;
   settings: OlfactorySettings;
+  /** Set for a walk streamed from BrianBackend; the dataset is rebuilt from
+   *  `snapshots` as new data arrives. */
+  live?: LiveSource & { snapshots: LiveSnapshot[] };
 }
 
 interface AcousticLayer extends BaseLayer {
@@ -165,6 +172,72 @@ export default function App() {
       setAddError(e instanceof Error ? e.message : String(e));
     }
   };
+
+  const handleAddLive = (backendUrl: string, walk: LiveWalk) => {
+    setAddError(null);
+    const { id, accent } = nextLayerBase();
+    const started = new Date(walk.firstAt).toLocaleString([], {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+    const name = `${walk.deviceName ?? "BRIAN"} · ${started}`;
+    const dataset = emptyLiveDataset(name, walk.walkId);
+    setLayers((prev) => [
+      ...prev,
+      {
+        id,
+        kind: "olfactory",
+        name,
+        visible: true,
+        accent,
+        render: "both",
+        traceWidth: DEFAULT_TRACE_WIDTH,
+        dataset,
+        info: `Walk ${walk.walkId} from ${new URL(backendUrl).host}`,
+        settings: defaultOlfactorySettings(dataset),
+        // The layer's LiveStatus fetches the walk so far, then polls for more.
+        live: { backendUrl, walkId: walk.walkId, following: true, snapshots: [] },
+      },
+    ]);
+  };
+
+  // New snapshots for a live layer: rebuild its dataset and keep the user's
+  // settings, except where they were only defaults for too little data.
+  const appendLive = useCallback((id: string, incoming: LiveSnapshot[]) => {
+    setLayers((prev) =>
+      prev.map((l) => {
+        if (l.id !== id || l.kind !== "olfactory" || !l.live) return l;
+        const snapshots = appendSnapshots(l.live.snapshots, incoming);
+        let dataset: OlfactoryDataset;
+        try {
+          dataset = liveDataset(snapshots, l.name, l.live.walkId).dataset;
+        } catch {
+          // No snapshot has a GPS fix yet.
+          return { ...l, live: { ...l.live, snapshots } };
+        }
+        const old = l.dataset;
+        const defaults = defaultOlfactorySettings(dataset);
+        const usedAllChannels =
+          l.settings.selected.length === old.featureChannels.length &&
+          old.featureChannels.every((c) => l.settings.selected.includes(c));
+        const settings: OlfactorySettings = {
+          ...l.settings,
+          selected: usedAllChannels ? defaults.selected : l.settings.selected,
+          k: l.settings.k >= old.samples.length ? defaults.k : l.settings.k,
+        };
+        return { ...l, dataset, settings, live: { ...l.live, snapshots } };
+      }),
+    );
+  }, []);
+
+  const setLiveFollowing = (id: string, following: boolean) =>
+    setLayers((prev) =>
+      prev.map((l) =>
+        l.id === id && l.kind === "olfactory" && l.live
+          ? { ...l, live: { ...l.live, following } }
+          : l,
+      ),
+    );
 
   const handleAddAudio = (file: File) => {
     setAddError(null);
@@ -320,6 +393,7 @@ export default function App() {
             legend: o?.legend,
             fingerprintAxes: o?.fingerprintAxes,
             geojson: l.kind === "context" ? l.geojson : undefined,
+            live: l.kind === "olfactory" && !!l.live,
           };
         }),
     [layers, outputs],
@@ -357,12 +431,15 @@ export default function App() {
           <p>
             Map and compare sensory walks — <strong>olfactory</strong>{" "}
             (electronic-nose) and <strong>acoustic</strong> (audio) — as layers on
-            one map. Everything runs in your browser; no data leaves your machine.
+            one map. Everything runs in your browser; files you load never leave
+            your machine.
           </p>
           <ol>
             <li>
               <strong>Add a layer.</strong> Use <em>+ Add olfactory layer</em> for a
               BRIAN CSV export, or <em>+ Add acoustic layer</em> for an audio file.
+              Use <em>+ Add live walk</em> to follow a smell walk that is being
+              recorded right now with the BRIAN app.
             </li>
             <li>
               <strong>Add context (optional).</strong> Use <em>+ Add context layer</em>{" "}
@@ -431,6 +508,12 @@ export default function App() {
               }}
             />
           </label>
+          <LiveWalkPicker
+            addedWalkIds={layers.flatMap((l) =>
+              l.kind === "olfactory" && l.live ? [l.live.walkId] : [],
+            )}
+            onAdd={handleAddLive}
+          />
           {addError && <p className="error">{addError}</p>}
         </section>
 
@@ -520,13 +603,30 @@ export default function App() {
                 {layer.kind === "olfactory" ? (
                   <>
                     {layer.info && <p className="muted small">{layer.info}</p>}
-                    <OlfactoryPanel
-                      layerId={layer.id}
-                      dataset={layer.dataset}
-                      settings={layer.settings}
-                      onSettingsChange={(patch) => updateOlfactorySettings(layer.id, patch)}
-                      onLayerData={onLayerData}
-                    />
+                    {layer.live && (
+                      <LiveStatus
+                        source={layer.live}
+                        lastTime={layer.live.snapshots[layer.live.snapshots.length - 1]?.time}
+                        sampleCount={layer.live.snapshots.length}
+                        onSnapshots={(snapshots) => appendLive(layer.id, snapshots)}
+                        onFollowingChange={(f) => setLiveFollowing(layer.id, f)}
+                      />
+                    )}
+                    {layer.dataset.samples.length > 0 ? (
+                      <OlfactoryPanel
+                        layerId={layer.id}
+                        dataset={layer.dataset}
+                        settings={layer.settings}
+                        onSettingsChange={(patch) => updateOlfactorySettings(layer.id, patch)}
+                        onLayerData={onLayerData}
+                      />
+                    ) : (
+                      <p className="muted small">
+                        {layer.live && layer.live.snapshots.length > 0
+                          ? "Receiving data, waiting for a GPS fix…"
+                          : "Waiting for data…"}
+                      </p>
+                    )}
                   </>
                 ) : (
                   <>

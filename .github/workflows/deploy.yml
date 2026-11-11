@@ -29,6 +29,8 @@ jobs:
         env:
           # Project-page base path: https://<user>.github.io/<repo>/
           VITE_BASE: /${{ github.event.repository.name }}/
+          # Optional default BrianBackend URL for live walks (repository variable).
+          VITE_BRIAN_BACKEND_URL: ${{ vars.BRIAN_BACKEND_URL }}
         run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
