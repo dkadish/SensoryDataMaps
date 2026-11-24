@@ -122,13 +122,18 @@ enable Pages → "GitHub Actions" in the repo settings. The live deployment is a
 ## Tech stack
 
 - **React + TypeScript + Vite**
-- **Leaflet / react-leaflet** with OpenStreetMap tiles (no API key)
+- **Leaflet / react-leaflet** with OpenStreetMap tiles (no API key); an Esri
+  World Imagery satellite base map is planned, see
+  [`docs/base-maps.md`](docs/base-maps.md)
 - **ml-hclust** for hierarchical clustering
 - **Meyda** + Web Audio API for in-browser audio features
 - **PapaParse** for CSV
 
 ## Roadmap
 
+- [ ] Base-map switcher: OpenStreetMap ("Map") or Esri World Imagery
+  ("Satellite"); see [`docs/base-maps.md`](docs/base-maps.md)
+  ([#14](https://github.com/dkadish/SensoryDataMaps/issues/14)).
 - [ ] Full ecoacoustic indices (Pyodide + `scikit-maad`, or a Python service).
 - [ ] Olfactory GPS via separate GPX + time-sync (reuse the acoustic sync).
 - [ ] Export: clustered CSV / GeoJSON download.
